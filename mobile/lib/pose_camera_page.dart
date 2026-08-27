@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'domain/models.dart';
 import 'domain/exercise.dart';
+import 'domain/feedback_catalog.dart';
 import 'coaching_cues.dart';
 import 'pose_painter.dart';
 import 'pose_landmark_mapper.dart';
@@ -373,6 +374,7 @@ class LiveSessionHud extends StatelessWidget {
         .where((rep) => rep.status == RepStatus.calibrating)
         .length;
     final latest = state.latestFeedback;
+    final latestFeedbackText = latest == null ? null : feedbackForRep(latest);
     final trackingInterrupted =
         pipelineStatus == PosePipelineStatus.noPerson ||
         pipelineStatus == PosePipelineStatus.lowConfidence ||
@@ -515,10 +517,10 @@ class LiveSessionHud extends StatelessWidget {
                   child: LinearProgressIndicator(value: calibrationCount / 3),
                 ),
               ],
-              if (!trackingInterrupted && latest?.reason != null) ...[
+              if (!trackingInterrupted && latestFeedbackText != null) ...[
                 const SizedBox(height: AppSpacing.small),
                 Text(
-                  latest!.reason!,
+                  latestFeedbackText,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],

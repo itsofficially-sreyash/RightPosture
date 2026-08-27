@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:right_posture/domain/feedback_catalog.dart';
 import 'package:right_posture/domain/models.dart';
 import 'package:right_posture/domain/rep_evaluator.dart';
 import 'package:right_posture/pose_landmark_mapper.dart';
@@ -129,6 +130,16 @@ void main() {
     expect(container.read(sessionControllerProvider).reps, isEmpty);
   });
 
+  test('tracking loss clears stale feedback', () {
+    controller.startTracking();
+    completeRep(controller, 100);
+    expect(container.read(sessionControllerProvider).latestFeedback, isNotNull);
+
+    controller.trackingInterrupted();
+
+    expect(container.read(sessionControllerProvider).latestFeedback, isNull);
+  });
+
   test('one noisy angle cannot create a rep', () {
     controller.startTracking();
     repeatSample(controller, 170);
@@ -162,7 +173,7 @@ void main() {
     expect(rep.number, 4);
     expect(rep.angles['knee'], 145);
     expect(rep.status, RepStatus.degraded);
-    expect(rep.reason, 'Next rep: go lower');
+    expect(feedbackForRep(rep), 'Next rep: go lower');
   });
 
   test('end session stops evaluation and reset clears all state', () {

@@ -1,3 +1,4 @@
+import 'feedback_catalog.dart';
 import 'models.dart';
 
 SessionSummary summarizeSession(List<Rep> reps) {
@@ -9,8 +10,11 @@ SessionSummary summarizeSession(List<Rep> reps) {
       .toList(growable: false);
   final jointCounts = <String, int>{};
   for (final rep in degraded) {
-    final joint = rep.responsibleJoint;
-    if (joint != null) jointCounts[joint] = (jointCounts[joint] ?? 0) + 1;
+    final issue = selectPrimaryIssue(rep.issues);
+    if (issue != null) {
+      final label = metricLabel(issue.metric);
+      jointCounts[label] = (jointCounts[label] ?? 0) + 1;
+    }
   }
   String? primaryJoint;
   var primaryCount = 0;

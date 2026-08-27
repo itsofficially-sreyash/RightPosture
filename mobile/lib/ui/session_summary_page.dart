@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/models.dart';
+import '../domain/feedback_catalog.dart';
 import '../session_controller.dart';
 import 'app_theme.dart';
 
@@ -162,6 +163,7 @@ class _RepRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final feedback = feedbackForRep(rep);
     final (icon, color, label) = switch (rep.status) {
       RepStatus.calibrating => (Icons.tune, AppColors.textMuted, 'calibrating'),
       RepStatus.good => (Icons.check_circle, AppColors.lime, 'good'),
@@ -170,7 +172,7 @@ class _RepRow extends StatelessWidget {
     };
     return Semantics(
       label:
-          'Rep ${rep.number}, $label${rep.reason == null ? '' : ', ${rep.reason}'}',
+          'Rep ${rep.number}, $label${feedback == null ? '' : ', $feedback'}',
       child: ExcludeSemantics(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.small),

@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:right_posture/domain/exercise.dart';
+import 'package:right_posture/domain/feedback_catalog.dart';
 import 'package:right_posture/domain/joint_angle.dart';
 import 'package:right_posture/domain/models.dart';
 import 'package:right_posture/domain/rep_evaluator.dart';
@@ -142,8 +144,8 @@ void main() {
       final degraded = evaluator.evaluate({'knee': 126}, confidenceOk: true)!;
       expect(warning.status, RepStatus.warning);
       expect(degraded.status, RepStatus.degraded);
-      expect(degraded.responsibleJoint, 'knee');
-      expect(degraded.reason, isNotEmpty);
+      expect(degraded.issues.single.metric, MovementMetric.kneeAngle);
+      expect(feedbackForRep(degraded), isNotEmpty);
     });
 
     test('good rep resets persistence', () {
@@ -165,12 +167,12 @@ void main() {
     test('directional feedback explains depth correction', () {
       final evaluator = calibratedEvaluator();
       expect(
-        evaluator.evaluate({'knee': 125}, confidenceOk: true)!.reason,
+        feedbackForRep(evaluator.evaluate({'knee': 125}, confidenceOk: true)!),
         'Next rep: go slightly lower',
       );
       evaluator.evaluate({'knee': 110}, confidenceOk: true);
       expect(
-        evaluator.evaluate({'knee': 95}, confidenceOk: true)!.reason,
+        feedbackForRep(evaluator.evaluate({'knee': 95}, confidenceOk: true)!),
         'Next rep: do not go as deep',
       );
     });
@@ -183,8 +185,8 @@ void main() {
         final rep = evaluator.evaluate({'knee': 60}, confidenceOk: true)!;
         expect(rep.number, 4);
         expect(rep.status, RepStatus.degraded);
-        expect(rep.responsibleJoint, 'knee');
-        expect(rep.reason, 'Next rep: do not go as deep');
+        expect(rep.issues.single.metric, MovementMetric.kneeAngle);
+        expect(feedbackForRep(rep), 'Next rep: do not go as deep');
       },
     );
 
@@ -221,7 +223,7 @@ void main() {
     expect(summary.totalReps, 6);
     expect(summary.formScorePercent, closeTo(100 / 3, 1e-9));
     expect(summary.degradationStartRep, 6);
-    expect(summary.primaryResponsibleJoint, 'knee');
+    expect(summary.primaryResponsibleJoint, 'Knee range');
   });
 
   test('empty and calibration-only summaries have no score', () {

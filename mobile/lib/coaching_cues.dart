@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_edge_tts/flutter_edge_tts.dart';
 
 import 'domain/models.dart';
+import 'domain/feedback_catalog.dart';
 import 'domain/squat_rep_detector.dart';
 import 'settings_controller.dart';
 
@@ -63,6 +64,8 @@ class CoachingCueCoordinator {
     ...SquatCoaching.values.map(coachingText),
     'Next rep: go slightly lower',
     'Next rep: do not go as deep',
+    'Next rep: go lower',
+    'Your movement changed from your baseline',
   ];
   final Future<Uint8List> Function(String)? _synthesize;
   final Future<void> Function(Uint8List)? _play;
@@ -105,8 +108,9 @@ class CoachingCueCoordinator {
     }
     final newFeedback = latestRep != null && latestRep.number != _lastSpeechRep;
     if (newFeedback) _lastSpeechRep = latestRep.number;
-    final text = newFeedback && latestRep.reason != null
-        ? latestRep.reason!
+    final feedback = latestRep == null ? null : feedbackForRep(latestRep);
+    final text = newFeedback && feedback != null
+        ? feedback
         : coachingText(coaching);
     _scheduleSpeech(text);
   }

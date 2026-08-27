@@ -206,8 +206,15 @@ void main() {
       number: 4,
       angles: const {'knee': 60},
       status: RepStatus.degraded,
-      reason: 'Knee angle outside range',
-      responsibleJoint: 'knee',
+      issues: const [
+        RepIssue(
+          exercise: ExerciseId.squat,
+          metric: MovementMetric.kneeAngle,
+          direction: IssueDirection.aboveRange,
+          measuredValue: 60,
+          normalizedSeverity: 1,
+        ),
+      ],
     );
     final state = SessionState(
       phase: SessionPhase.complete,
@@ -222,7 +229,7 @@ void main() {
         totalReps: 4,
         formScorePercent: 0,
         degradationStartRep: 4,
-        primaryResponsibleJoint: 'knee',
+        primaryResponsibleJoint: 'Knee range',
         repChecklist: [degradedRep],
       ),
     );

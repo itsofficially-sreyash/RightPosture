@@ -209,7 +209,6 @@ class SessionController extends Notifier<SessionState> {
       selectedExercise: state.selectedExercise,
       reps: state.reps,
       baseline: state.baseline,
-      latestFeedback: state.latestFeedback,
       coaching: state.coaching,
       summary: summarizeSession(state.reps),
     );
@@ -223,7 +222,6 @@ class SessionController extends Notifier<SessionState> {
       selectedExercise: state.selectedExercise,
       reps: state.reps,
       baseline: state.baseline,
-      latestFeedback: state.latestFeedback,
       coaching: state.coaching,
       error: message,
     );
@@ -236,7 +234,6 @@ class SessionController extends Notifier<SessionState> {
       selectedExercise: state.selectedExercise,
       reps: state.reps,
       baseline: state.baseline,
-      latestFeedback: state.latestFeedback,
       coaching: state.coaching,
     );
   }
@@ -260,13 +257,11 @@ class SessionController extends Notifier<SessionState> {
     }
     if (state.phase != SessionPhase.tracking) return;
     _resetTrackingInput();
-    if (state.coaching == null) return;
     state = SessionState(
       phase: state.phase,
       selectedExercise: state.selectedExercise,
       reps: state.reps,
       baseline: state.baseline,
-      latestFeedback: state.latestFeedback,
     );
   }
 

@@ -1,4 +1,26 @@
+import 'exercise.dart';
+
 enum RepStatus { calibrating, good, warning, degraded }
+
+enum IssueDirection { belowRange, aboveRange, increased, decreased, asymmetric }
+
+class RepIssue {
+  const RepIssue({
+    required this.exercise,
+    required this.metric,
+    required this.direction,
+    required this.measuredValue,
+    required this.normalizedSeverity,
+    this.baselineValue,
+  });
+
+  final ExerciseId exercise;
+  final MovementMetric metric;
+  final IssueDirection direction;
+  final double measuredValue;
+  final double? baselineValue;
+  final double normalizedSeverity;
+}
 
 class JointThreshold {
   const JointThreshold({
@@ -35,15 +57,14 @@ class Rep {
     required this.number,
     required Map<String, double> angles,
     required this.status,
-    this.reason,
-    this.responsibleJoint,
-  }) : angles = Map.unmodifiable(angles);
+    List<RepIssue> issues = const [],
+  }) : angles = Map.unmodifiable(angles),
+       issues = List.unmodifiable(issues);
 
   final int number;
   final Map<String, double> angles;
   final RepStatus status;
-  final String? reason;
-  final String? responsibleJoint;
+  final List<RepIssue> issues;
 }
 
 class SessionSummary {

@@ -1,3 +1,4 @@
+import 'exercise.dart';
 import 'models.dart';
 
 class RepEvaluator {
@@ -34,22 +35,34 @@ class RepEvaluator {
     final absoluteFailure = _largestAbsoluteFailure(angles);
     if (absoluteFailure != null) {
       _deviationCounts.clear();
+      final value = angles[absoluteFailure]!;
+      final threshold = thresholds.joints[absoluteFailure]!;
       return Rep(
         number: _repNumber,
         angles: Map.unmodifiable(angles),
         status: RepStatus.degraded,
-        responsibleJoint: absoluteFailure,
-        reason: absoluteFailure == 'knee'
-            ? angles[absoluteFailure]! <
-                      thresholds.joints[absoluteFailure]!.minimum
-                  ? 'Next rep: do not go as deep'
-                  : 'Next rep: go lower'
-            : '$absoluteFailure angle outside acceptable range',
+        issues: [
+          RepIssue(
+            exercise: ExerciseId.squat,
+            metric: _metricForJoint(absoluteFailure),
+            direction: value < threshold.minimum
+                ? IssueDirection.aboveRange
+                : IssueDirection.belowRange,
+            measuredValue: value,
+            baselineValue: _baseline?[absoluteFailure],
+            normalizedSeverity:
+                (value < threshold.minimum
+                    ? threshold.minimum - value
+                    : value - threshold.maximum) /
+                threshold.deviationThreshold,
+          ),
+        ],
       );
     }
 
     String? largestDeviationJoint;
     var largestDeviationRatio = 0.0;
+    final issues = <RepIssue>[];
     for (final entry in thresholds.joints.entries) {
       final joint = entry.key;
       final deviation = (angles[joint]! - _baseline![joint]!).abs();
@@ -60,6 +73,18 @@ class RepEvaluator {
           largestDeviationRatio = ratio;
           largestDeviationJoint = joint;
         }
+        issues.add(
+          RepIssue(
+            exercise: ExerciseId.squat,
+            metric: _metricForJoint(joint),
+            direction: angles[joint]! > _baseline![joint]!
+                ? IssueDirection.increased
+                : IssueDirection.decreased,
+            measuredValue: angles[joint]!,
+            baselineValue: _baseline![joint],
+            normalizedSeverity: ratio,
+          ),
+        );
       } else {
         _deviationCounts[joint] = 0;
       }
@@ -80,22 +105,14 @@ class RepEvaluator {
       number: _repNumber,
       angles: Map.unmodifiable(angles),
       status: status,
-      responsibleJoint: largestDeviationJoint,
-      reason: _directionalReason(
-        joint: largestDeviationJoint,
-        angle: angles[largestDeviationJoint]!,
-      ),
+      issues: issues,
     );
   }
 
-  String _directionalReason({required String joint, required double angle}) {
-    if (joint == 'knee') {
-      return angle > _baseline![joint]!
-          ? 'Next rep: go slightly lower'
-          : 'Next rep: do not go as deep';
-    }
-    return '$joint angle changed from calibration';
-  }
+  MovementMetric _metricForJoint(String joint) => switch (joint) {
+    'knee' => MovementMetric.kneeAngle,
+    _ => throw StateError('Unsupported squat metric: $joint'),
+  };
 
   void reset() {
     _calibrationSamples.clear();
