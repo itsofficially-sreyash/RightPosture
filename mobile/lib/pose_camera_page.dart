@@ -1,189 +1,331 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'input_image_converter.dart';
+import 'domain/models.dart';
 import 'pose_painter.dart';
+import 'pose_pipeline.dart';
+import 'pose_pipeline_status.dart';
+import 'session_controller.dart';
+import 'ui/app_theme.dart';
 
-class PoseCameraPage extends StatefulWidget {
+class PoseCameraPage extends ConsumerStatefulWidget {
   const PoseCameraPage({super.key});
 
   @override
-  State<PoseCameraPage> createState() => _PoseCameraPageState();
+  ConsumerState<PoseCameraPage> createState() => _PoseCameraPageState();
 }
 
-class _PoseCameraPageState extends State<PoseCameraPage>
+class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     with WidgetsBindingObserver {
-  final _detector = PoseDetector(
-    options: PoseDetectorOptions(mode: PoseDetectionMode.stream),
-  );
-  CameraController? _controller;
-  CameraDescription? _camera;
-  List<Pose> _poses = const [];
-  Size? _imageSize;
-  bool _processing = false;
-  int _processedFrames = 0;
-  Duration _lastProcessingTime = Duration.zero;
-  String? _error;
+  late final PosePipeline _pipeline;
+  PosePipelineSnapshot? _consumedSnapshot;
+  PosePipelineStatus _pipelineStatus = PosePipelineStatus.initializing;
+  String? _pipelineError;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_initializeCamera());
+    _pipeline = PosePipeline()..addListener(_refresh);
+    unawaited(_pipeline.start());
   }
 
-  Future<void> _initializeCamera() async {
-    if (_controller != null) return;
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) throw StateError('No camera found');
-      final camera = cameras.firstWhere(
-        (item) => item.lensDirection == CameraLensDirection.back,
-        orElse: () => cameras.first,
-      );
-      final controller = CameraController(
-        camera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: Platform.isAndroid
-            ? ImageFormatGroup.nv21
-            : ImageFormatGroup.bgra8888,
-      );
-      _controller = controller;
-      _camera = camera;
-      await controller.initialize();
-      if (!mounted || _controller != controller) {
-        await controller.dispose();
-        return;
-      }
-      await controller.startImageStream(_processFrame);
-      setState(() => _error = null);
-    } on CameraException catch (error) {
-      await _disposeCamera();
-      if (mounted) setState(() => _error = error.description ?? error.code);
-    } catch (error) {
-      await _disposeCamera();
-      if (mounted) setState(() => _error = error.toString());
-    }
-  }
-
-  Future<void> _processFrame(CameraImage image) async {
-    final controller = _controller;
-    final camera = _camera;
-    if (_processing || controller == null || camera == null) return;
-    _processing = true;
-    final stopwatch = Stopwatch()..start();
-    try {
-      final input = inputImageFromCameraImage(
-        image: image,
-        camera: camera,
-        deviceOrientation: controller.value.deviceOrientation,
-      );
-      if (input == null) return;
-      final poses = await _detector.processImage(input);
-      if (!mounted || _controller != controller) return;
+  void _refresh() {
+    if (!mounted) return;
+    final snapshot = _pipeline.snapshot;
+    if (snapshot.status != _pipelineStatus ||
+        snapshot.error != _pipelineError) {
       setState(() {
-        _poses = poses;
-        _imageSize = input.metadata?.size;
-        _processedFrames++;
-        _lastProcessingTime = stopwatch.elapsed;
+        _pipelineStatus = snapshot.status;
+        _pipelineError = snapshot.error;
       });
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      _processing = false;
     }
+    if (!identical(snapshot, _consumedSnapshot)) {
+      _consumedSnapshot = snapshot;
+      final session = ref.read(sessionControllerProvider.notifier);
+      if (snapshot.status == PosePipelineStatus.failed) {
+        session.reportFailure(snapshot.error ?? 'Pose pipeline failed');
+      } else if (snapshot.squatSample case final sample?) {
+        session.acceptPoseSample(sample);
+      }
+    }
+  }
+
+  Future<void> _retry() async {
+    ref.read(sessionControllerProvider.notifier).retry();
+    await _pipeline.retry();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
-      unawaited(_disposeCamera());
+      unawaited(_pipeline.pause());
     } else if (state == AppLifecycleState.resumed) {
-      unawaited(_initializeCamera());
+      unawaited(_pipeline.start());
     }
-  }
-
-  Future<void> _disposeCamera() async {
-    final controller = _controller;
-    _controller = null;
-    _camera = null;
-    if (controller == null) return;
-    if (controller.value.isStreamingImages) await controller.stopImageStream();
-    await controller.dispose();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_disposeCamera());
-    unawaited(_detector.close());
+    _pipeline.removeListener(_refresh);
+    unawaited(_pipeline.close());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = _controller;
-    if (_error case final error?) {
-      return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(error, textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _initializeCamera,
-                  child: const Text('Retry'),
+    final session = ref.watch(sessionControllerProvider);
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) ref.read(sessionControllerProvider.notifier).reset();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _CameraSurface(pipeline: _pipeline, onRetry: _retry),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: LiveSessionHud(
+                  state: session,
+                  pipelineStatus: _pipelineStatus,
+                  pipelineError: _pipelineError,
+                  onEnd: ref
+                      .read(sessionControllerProvider.notifier)
+                      .endSession,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      );
-    }
-    if (controller == null || !controller.value.isInitialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+      ),
+    );
+  }
+}
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
+class _CameraSurface extends StatelessWidget {
+  const _CameraSurface({required this.pipeline, required this.onRetry});
+
+  final PosePipeline pipeline;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: pipeline,
+      builder: (context, _) {
+        final snapshot = pipeline.snapshot;
+        final controller = pipeline.controller;
+        if (snapshot.status == PosePipelineStatus.failed ||
+            controller == null ||
+            !controller.value.isInitialized) {
+          return PosePipelineStatusPanel(snapshot: snapshot, onRetry: onRetry);
+        }
+        final orientation = controller.value.deviceOrientation;
+        final landscape =
+            orientation == DeviceOrientation.landscapeLeft ||
+            orientation == DeviceOrientation.landscapeRight;
+        final previewAspectRatio = landscape
+            ? controller.value.aspectRatio
+            : 1 / controller.value.aspectRatio;
+        return Stack(
           fit: StackFit.expand,
           children: [
-            CameraPreview(controller),
-            if (_imageSize case final imageSize?)
-              CustomPaint(
-                painter: PosePainter(poses: _poses, imageSize: imageSize),
-              ),
-            Positioned(
-              top: 12,
-              left: 12,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Text(
-                    'Pose: ${_poses.isEmpty ? 'not found' : 'found'}\n'
-                    'Frames: $_processedFrames\n'
-                    'Last: ${_lastProcessingTime.inMilliseconds} ms',
-                    style: const TextStyle(color: Colors.white),
+            Center(
+              child: AspectRatio(
+                aspectRatio: previewAspectRatio,
+                child: ExcludeSemantics(
+                  child: CameraPreview(
+                    controller,
+                    child: snapshot.imageSize == null
+                        ? null
+                        : RepaintBoundary(
+                            child: CustomPaint(
+                              painter: PosePainter(
+                                poses: snapshot.poses,
+                                imageSize: snapshot.imageSize!,
+                                rotationDegrees: snapshot.rotationDegrees,
+                                mirrored: snapshot.mirrored,
+                              ),
+                            ),
+                          ),
                   ),
                 ),
               ),
             ),
+            Positioned(
+              top: 12,
+              left: 12,
+              child: PosePipelineStatusPanel(
+                snapshot: snapshot,
+                onRetry: onRetry,
+              ),
+            ),
+            if (pipeline.canSwitchCamera)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: IconButton.filled(
+                  key: const Key('camera_switch_button'),
+                  onPressed: pipeline.switchCamera,
+                  icon: const Icon(Icons.cameraswitch),
+                  tooltip: 'Switch camera',
+                ),
+              ),
           ],
+        );
+      },
+    );
+  }
+}
+
+class LiveSessionHud extends StatelessWidget {
+  const LiveSessionHud({
+    super.key,
+    required this.state,
+    required this.onEnd,
+    this.pipelineStatus = PosePipelineStatus.ready,
+    this.pipelineError,
+  });
+
+  final SessionState state;
+  final VoidCallback onEnd;
+  final PosePipelineStatus pipelineStatus;
+  final String? pipelineError;
+
+  @override
+  Widget build(BuildContext context) {
+    final calibrationCount = state.reps
+        .where((rep) => rep.status == RepStatus.calibrating)
+        .length;
+    final latest = state.latestFeedback;
+    final trackingInterrupted =
+        pipelineStatus == PosePipelineStatus.noPerson ||
+        pipelineStatus == PosePipelineStatus.lowConfidence ||
+        pipelineStatus == PosePipelineStatus.failed;
+    final (icon, color, status) = switch (pipelineStatus) {
+      PosePipelineStatus.noPerson => (
+        Icons.person_off,
+        AppColors.warning,
+        'Tracking paused. Step into frame',
+      ),
+      PosePipelineStatus.lowConfidence => (
+        Icons.center_focus_weak,
+        AppColors.warning,
+        'Tracking paused. Show your full body',
+      ),
+      PosePipelineStatus.failed => (
+        Icons.error,
+        AppColors.degraded,
+        'Tracking failed. ${pipelineError ?? 'Camera unavailable'}',
+      ),
+      _ => switch (latest?.status) {
+        RepStatus.good => (Icons.check_circle, AppColors.lime, 'Good rep'),
+        RepStatus.warning => (
+          Icons.warning_amber,
+          AppColors.warning,
+          'Check form',
+        ),
+        RepStatus.degraded => (
+          Icons.error,
+          AppColors.degraded,
+          'Form degraded',
+        ),
+        _ when calibrationCount < 3 => (
+          Icons.tune,
+          AppColors.textMuted,
+          'Calibrating $calibrationCount of 3',
+        ),
+        _ => (Icons.track_changes, AppColors.lime, 'Tracking'),
+      },
+    };
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: 720,
+        maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+      ),
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: Color(0xEE15161B),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppRadius.large),
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.medium),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Semantics(
+                    label: '${state.reps.length} repetitions',
+                    child: ExcludeSemantics(
+                      child: Text(
+                        '${state.reps.length}',
+                        style: Theme.of(context).textTheme.displayLarge,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.medium),
+                  Expanded(
+                    child: Semantics(
+                      liveRegion: true,
+                      label: status,
+                      child: Row(
+                        children: [
+                          Icon(icon, color: color),
+                          const SizedBox(width: AppSpacing.small),
+                          Flexible(
+                            child: Text(
+                              status,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (calibrationCount < 3) ...[
+                const SizedBox(height: AppSpacing.small),
+                Semantics(
+                  label: '$calibrationCount of 3 calibration reps complete',
+                  child: LinearProgressIndicator(value: calibrationCount / 3),
+                ),
+              ],
+              if (!trackingInterrupted && latest?.reason != null) ...[
+                const SizedBox(height: AppSpacing.small),
+                Text(
+                  latest!.reason!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+              const SizedBox(height: AppSpacing.medium),
+              OutlinedButton(
+                key: const Key('end_session'),
+                onPressed: onEnd,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(48, 52),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.textMuted),
+                  shape: const StadiumBorder(),
+                ),
+                child: const Text('End set'),
+              ),
+            ],
+          ),
         ),
       ),
     );

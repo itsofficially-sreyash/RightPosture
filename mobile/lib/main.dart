@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'pose_camera_page.dart';
+import 'ui/app_theme.dart';
+import 'ui/session_flow.dart';
 
-void main() => runApp(const RightPostureApp());
+void main() => runApp(const ProviderScope(child: RightPostureApp()));
 
 class RightPostureApp extends StatelessWidget {
   const RightPostureApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: PoseCameraPage(),
+      theme: buildAppTheme(),
+      home: const SessionFlow(),
     );
   }
 }
