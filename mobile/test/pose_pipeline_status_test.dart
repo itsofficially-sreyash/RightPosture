@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:right_posture/pose_landmark_mapper.dart';
 import 'package:right_posture/pose_pipeline.dart';
 import 'package:right_posture/pose_pipeline_status.dart';
 

@@ -48,8 +48,7 @@ class PoseMappingResult {
     required List<MappedPose> poses,
     this.squatSample,
     this.squatCandidate,
-  })
-    : poses = List.unmodifiable(poses);
+  }) : poses = List.unmodifiable(poses);
 
   final List<MappedPose> poses;
   final SquatFrameSample? squatSample;
@@ -137,9 +136,5 @@ SquatFrameSample? _sideSample(
     Point2(anklePoint.x, anklePoint.y),
   );
   if (angle == null) return null;
-  return SquatFrameSample(
-    kneeAngle: angle,
-    side: side,
-    confidence: confidence,
-  );
+  return SquatFrameSample(kneeAngle: angle, side: side, confidence: confidence);
 }
