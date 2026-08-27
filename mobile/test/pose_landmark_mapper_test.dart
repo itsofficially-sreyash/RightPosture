@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:right_posture/pose_landmark_mapper.dart';
+import 'package:right_posture/domain/joint_angle.dart';
 
 void main() {
   test('returns no pose sample when no person is detected', () {
@@ -56,7 +57,48 @@ void main() {
     expect(result.squatSample!.side, 'left');
     expect(result.poses, hasLength(2));
   });
+
+  test('squat placement requires confident full side away from edges', () {
+    final ready = evaluateSquatPlacement(
+      mappedLeftSide(),
+      imageWidth: 100,
+      imageHeight: 100,
+    );
+    final nearEdge = evaluateSquatPlacement(
+      mappedLeftSide(shoulderX: 1),
+      imageWidth: 100,
+      imageHeight: 100,
+    );
+    final missing = evaluateSquatPlacement(
+      MappedPose(const {}),
+      imageWidth: 100,
+      imageHeight: 100,
+    );
+
+    expect(ready.status, PlacementStatus.ready);
+    expect(nearEdge.status, PlacementStatus.nearEdge);
+    expect(missing.status, PlacementStatus.missingLandmarks);
+  });
 }
+
+MappedPose mappedLeftSide({double shoulderX = 50}) => MappedPose({
+  BodyJoint.leftShoulder: LandmarkSample(
+    point: Point2(shoulderX, 20),
+    confidence: 0.9,
+  ),
+  BodyJoint.leftHip: const LandmarkSample(
+    point: Point2(50, 45),
+    confidence: 0.9,
+  ),
+  BodyJoint.leftKnee: const LandmarkSample(
+    point: Point2(50, 65),
+    confidence: 0.9,
+  ),
+  BodyJoint.leftAnkle: const LandmarkSample(
+    point: Point2(50, 85),
+    confidence: 0.9,
+  ),
+});
 
 Pose poseWithLegs({
   required double leftConfidence,

@@ -15,8 +15,56 @@ void main() {
     controller = container.read(sessionControllerProvider.notifier);
   });
 
+  test('preparation gates countdown and tracking', () {
+    controller.prepareSession();
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.preparing,
+    );
+
+    const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
+    controller.acceptPreparationResult(ready);
+    controller.acceptPreparationResult(ready);
+    expect(container.read(sessionControllerProvider).placementStable, isFalse);
+    controller.acceptPoseSample(sample(170));
+    expect(container.read(sessionControllerProvider).reps, isEmpty);
+
+    controller.acceptPreparationResult(ready);
+    expect(container.read(sessionControllerProvider).placementStable, isTrue);
+    controller.startCountdown();
+    expect(container.read(sessionControllerProvider).countdownValue, 3);
+    completeRep(controller, 100);
+    expect(container.read(sessionControllerProvider).reps, isEmpty);
+
+    controller.advanceCountdown();
+    expect(container.read(sessionControllerProvider).countdownValue, 2);
+    controller.advanceCountdown();
+    expect(container.read(sessionControllerProvider).countdownValue, 1);
+    controller.advanceCountdown();
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.tracking,
+    );
+  });
+
+  test('pose loss cancels countdown and returns to preparation', () {
+    controller.prepareSession();
+    const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
+    for (var i = 0; i < 3; i++) {
+      controller.acceptPreparationResult(ready);
+    }
+    controller.startCountdown();
+
+    controller.trackingInterrupted();
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.preparing);
+    expect(state.placementStable, isFalse);
+    expect(state.countdownValue, isNull);
+  });
+
   test('moves through calibration, tracking, and completion', () {
-    controller.startSession();
+    controller.startTracking();
     completeRep(controller, 100);
     completeRep(controller, 110);
     completeRep(controller, 105);
@@ -41,7 +89,7 @@ void main() {
   });
 
   test('duplicate standing frames cannot record duplicate reps', () {
-    controller.startSession();
+    controller.startTracking();
     for (var i = 0; i < 10; i++) {
       controller.acceptPoseSample(sample(170));
     }
@@ -56,7 +104,7 @@ void main() {
   });
 
   test('scripted squat set records exactly one result per movement', () {
-    controller.startSession();
+    controller.startTracking();
     for (final bottomAngle in [100.0, 105.0, 100.0, 108.0, 105.0]) {
       completeRep(controller, bottomAngle);
     }
@@ -71,7 +119,7 @@ void main() {
   });
 
   test('low-confidence tracking loss cannot finish an active rep', () {
-    controller.startSession();
+    controller.startTracking();
     repeatSample(controller, 170);
     repeatSample(controller, 100);
     controller.acceptPoseSample(
@@ -82,7 +130,7 @@ void main() {
   });
 
   test('one noisy angle cannot create a rep', () {
-    controller.startSession();
+    controller.startTracking();
     repeatSample(controller, 170);
     controller.acceptPoseSample(sample(100));
     repeatSample(controller, 170);
@@ -91,7 +139,7 @@ void main() {
   });
 
   test('tracked side stays locked until rep completes', () {
-    controller.startSession();
+    controller.startTracking();
     repeatSample(controller, 170, side: 'left');
     repeatSample(controller, 100, side: 'right');
     repeatSample(controller, 170, side: 'right');
@@ -103,7 +151,7 @@ void main() {
   });
 
   test('deliberate shallow squat completes and receives range feedback', () {
-    controller.startSession();
+    controller.startTracking();
     for (var i = 0; i < 3; i++) {
       completeRep(controller, 100);
     }
@@ -118,7 +166,7 @@ void main() {
   });
 
   test('end session stops evaluation and reset clears all state', () {
-    controller.startSession();
+    controller.startTracking();
     completeRep(controller, 100);
     controller.endSession();
     completeRep(controller, 100);
@@ -134,7 +182,7 @@ void main() {
   });
 
   test('pipeline failure blocks samples until retry', () {
-    controller.startSession();
+    controller.startTracking();
     controller.reportFailure('camera failed');
     completeRep(controller, 100);
     expect(container.read(sessionControllerProvider).reps, isEmpty);
@@ -146,7 +194,7 @@ void main() {
   });
 
   test('low-confidence sample cannot advance coaching or rep state', () {
-    controller.startSession();
+    controller.startTracking();
     controller.acceptPoseSample(
       const SquatFrameSample(kneeAngle: 170, side: 'left', confidence: 0.2),
     );

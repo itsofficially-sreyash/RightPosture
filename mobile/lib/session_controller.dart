@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'domain/models.dart';
 import 'domain/angle_smoother.dart';
+import 'domain/exercise.dart';
+import 'domain/exercise_registry.dart';
 import 'domain/rep_evaluator.dart';
 import 'domain/session_summary.dart';
 import 'domain/squat_rep_detector.dart';
 import 'pose_landmark_mapper.dart';
 
-enum SessionPhase { idle, tracking, complete }
+enum SessionPhase { idle, preparing, countdown, tracking, complete }
 
 class SessionState {
   SessionState({
@@ -19,20 +23,28 @@ class SessionState {
     this.summary,
     this.error,
     this.coaching,
+    this.placementStable = false,
+    this.placementGuidance,
+    this.countdownValue,
   }) : reps = List.unmodifiable(reps),
        baseline = baseline == null ? null : Map.unmodifiable(baseline);
 
-  factory SessionState.idle() =>
-      SessionState(phase: SessionPhase.idle, selectedExercise: 'squat');
+  factory SessionState.idle() => SessionState(
+    phase: SessionPhase.idle,
+    selectedExercise: ExerciseId.squat,
+  );
 
   final SessionPhase phase;
-  final String selectedExercise;
+  final ExerciseId selectedExercise;
   final List<Rep> reps;
   final Map<String, double>? baseline;
   final Rep? latestFeedback;
   final SessionSummary? summary;
   final String? error;
   final SquatCoaching? coaching;
+  final bool placementStable;
+  final String? placementGuidance;
+  final int? countdownValue;
 }
 
 final sessionControllerProvider =
@@ -42,19 +54,99 @@ class SessionController extends Notifier<SessionState> {
   late SquatRepDetector _repDetector;
   late RepEvaluator _evaluator;
   late AngleSmoother _kneeAngleSmoother;
+  final ExerciseRegistry _registry = const ExerciseRegistry();
   String? _trackedSide;
+  Timer? _countdownTimer;
+  int _stablePlacementFrames = 0;
 
   @override
   SessionState build() {
+    ref.onDispose(_cancelCountdown);
     _resetEngines();
     return SessionState.idle();
   }
 
-  void startSession() {
+  void startSession() => prepareSession();
+
+  void prepareSession() {
+    _cancelCountdown();
+    _resetEngines();
+    _stablePlacementFrames = 0;
+    state = SessionState(
+      phase: SessionPhase.preparing,
+      selectedExercise: ExerciseId.squat,
+      placementGuidance: squatExerciseProfile.setupInstruction,
+    );
+  }
+
+  void acceptPreparationResult(PlacementResult result) {
+    if (state.phase != SessionPhase.preparing &&
+        state.phase != SessionPhase.countdown) {
+      return;
+    }
+    if (!result.isReady) {
+      _stablePlacementFrames = 0;
+      _cancelCountdown();
+      state = SessionState(
+        phase: SessionPhase.preparing,
+        selectedExercise: state.selectedExercise,
+        placementGuidance: result.message,
+      );
+      return;
+    }
+    if (state.phase == SessionPhase.countdown) return;
+    _stablePlacementFrames++;
+    final stable = _stablePlacementFrames >= 3;
+    if (state.placementStable == stable &&
+        state.placementGuidance == result.message) {
+      return;
+    }
+    state = SessionState(
+      phase: SessionPhase.preparing,
+      selectedExercise: state.selectedExercise,
+      placementStable: stable,
+      placementGuidance: result.message,
+    );
+  }
+
+  void startCountdown() {
+    if (state.phase != SessionPhase.preparing || !state.placementStable) return;
+    _cancelCountdown();
+    state = SessionState(
+      phase: SessionPhase.countdown,
+      selectedExercise: state.selectedExercise,
+      placementStable: true,
+      placementGuidance: state.placementGuidance,
+      countdownValue: 3,
+    );
+    _countdownTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => advanceCountdown(),
+    );
+  }
+
+  void advanceCountdown() {
+    if (state.phase != SessionPhase.countdown) return;
+    final value = state.countdownValue ?? 3;
+    if (value <= 1) {
+      startTracking();
+      return;
+    }
+    state = SessionState(
+      phase: SessionPhase.countdown,
+      selectedExercise: state.selectedExercise,
+      placementStable: true,
+      placementGuidance: state.placementGuidance,
+      countdownValue: value - 1,
+    );
+  }
+
+  void startTracking() {
+    _cancelCountdown();
     _resetEngines();
     state = SessionState(
       phase: SessionPhase.tracking,
-      selectedExercise: 'squat',
+      selectedExercise: state.selectedExercise,
     );
   }
 
@@ -69,9 +161,17 @@ class SessionController extends Notifier<SessionState> {
     if (sample.side != _trackedSide) return;
     final smoothedAngle = _kneeAngleSmoother.add(sample.kneeAngle);
     if (smoothedAngle == null) return;
-    final completion = _repDetector.addKneeAngle(
-      smoothedAngle,
-      confidenceOk: confidenceOk,
+    final completion = _repDetector.addFrame(
+      MovementFrame(
+        timestamp: DateTime.now(),
+        values: {MovementMetric.kneeAngle: smoothedAngle},
+        confidence: {MovementMetric.kneeAngle: sample.confidence},
+        trackedSide: switch (sample.side) {
+          'left' => TrackedSide.left,
+          'right' => TrackedSide.right,
+          _ => TrackedSide.unknown,
+        },
+      ),
     );
     final coaching = _repDetector.coachingFor(smoothedAngle);
     if (completion == null) {
@@ -87,7 +187,7 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     final rep = _evaluator.evaluate({
-      'knee': completion.minimumAngle,
+      'knee': completion.minimumValues[MovementMetric.kneeAngle]!,
     }, confidenceOk: true);
     if (rep == null) return;
     _trackedSide = null;
@@ -142,11 +242,22 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void reset() {
+    _cancelCountdown();
     _resetEngines();
     state = SessionState.idle();
   }
 
   void trackingInterrupted() {
+    if (state.phase == SessionPhase.preparing ||
+        state.phase == SessionPhase.countdown) {
+      acceptPreparationResult(
+        const PlacementResult(
+          PlacementStatus.missingLandmarks,
+          'Position lost — step into frame',
+        ),
+      );
+      return;
+    }
     if (state.phase != SessionPhase.tracking) return;
     _resetTrackingInput();
     if (state.coaching == null) return;
@@ -160,7 +271,7 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _resetEngines() {
-    _repDetector = SquatRepDetector();
+    _repDetector = _registry.detectorFor(ExerciseId.squat) as SquatRepDetector;
     _evaluator = RepEvaluator(squatExerciseThresholds());
     _kneeAngleSmoother = AngleSmoother();
     _trackedSide = null;
@@ -170,6 +281,11 @@ class SessionController extends Notifier<SessionState> {
     _repDetector.reset();
     _kneeAngleSmoother.reset();
     _trackedSide = null;
+  }
+
+  void _cancelCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
   }
 }
 

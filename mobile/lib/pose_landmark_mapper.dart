@@ -1,20 +1,18 @@
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
-
 import 'domain/joint_angle.dart';
+import 'domain/exercise.dart';
 
-enum BodyJoint {
-  leftShoulder,
-  rightShoulder,
-  leftElbow,
-  rightElbow,
-  leftWrist,
-  rightWrist,
-  leftHip,
-  rightHip,
-  leftKnee,
-  rightKnee,
-  leftAnkle,
-  rightAnkle,
+export 'domain/exercise.dart' show BodyJoint;
+
+enum PlacementStatus { ready, missingLandmarks, nearEdge }
+
+class PlacementResult {
+  const PlacementResult(this.status, this.message);
+
+  final PlacementStatus status;
+  final String message;
+
+  bool get isReady => status == PlacementStatus.ready;
 }
 
 class LandmarkSample {
@@ -53,6 +51,57 @@ class PoseMappingResult {
   final List<MappedPose> poses;
   final SquatFrameSample? squatSample;
   final SquatFrameSample? squatCandidate;
+}
+
+PlacementResult evaluateSquatPlacement(
+  MappedPose? pose, {
+  required double imageWidth,
+  required double imageHeight,
+  double minimumConfidence = 0.6,
+  double edgeMarginRatio = 0.05,
+}) {
+  if (pose == null || imageWidth <= 0 || imageHeight <= 0) {
+    return const PlacementResult(
+      PlacementStatus.missingLandmarks,
+      'Step into frame',
+    );
+  }
+  const left = [
+    BodyJoint.leftShoulder,
+    BodyJoint.leftHip,
+    BodyJoint.leftKnee,
+    BodyJoint.leftAnkle,
+  ];
+  const right = [
+    BodyJoint.rightShoulder,
+    BodyJoint.rightHip,
+    BodyJoint.rightKnee,
+    BodyJoint.rightAnkle,
+  ];
+  final joints = [left, right].where(
+    (side) => side.every(
+      (joint) => (pose.landmarks[joint]?.confidence ?? 0) >= minimumConfidence,
+    ),
+  );
+  if (joints.isEmpty) {
+    return const PlacementResult(
+      PlacementStatus.missingLandmarks,
+      'Move back — show shoulders, hips, knees, and ankles',
+    );
+  }
+  final xMargin = imageWidth * edgeMarginRatio;
+  final yMargin = imageHeight * edgeMarginRatio;
+  final nearEdge = joints.first.any((joint) {
+    final point = pose.landmarks[joint]!.point;
+    return point.x < xMargin ||
+        point.x > imageWidth - xMargin ||
+        point.y < yMargin ||
+        point.y > imageHeight - yMargin;
+  });
+  if (nearEdge) {
+    return const PlacementResult(PlacementStatus.nearEdge, 'Move farther back');
+  }
+  return const PlacementResult(PlacementStatus.ready, 'Position ready');
 }
 
 PoseMappingResult mapPoses(List<Pose> poses, {double minimumConfidence = 0.6}) {

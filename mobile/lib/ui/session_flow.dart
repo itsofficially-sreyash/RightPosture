@@ -16,6 +16,8 @@ class SessionFlow extends ConsumerWidget {
     );
     return switch (phase) {
       SessionPhase.idle => const ExerciseSelectPage(),
+      SessionPhase.preparing ||
+      SessionPhase.countdown => const PoseCameraPage(),
       SessionPhase.tracking => const PoseCameraPage(),
       SessionPhase.complete => const SessionSummaryPage(),
     };

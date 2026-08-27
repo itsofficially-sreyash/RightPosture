@@ -1,3 +1,5 @@
+import 'exercise.dart';
+
 enum SquatMovementPhase { waitingForStanding, waitingForBottom, returning }
 
 enum SquatCoaching { standTall, ready, goLower, depthGood, standUp, tooDeep }
@@ -6,15 +8,17 @@ class SquatRepCompletion {
   const SquatRepCompletion({
     required this.startAngle,
     required this.minimumAngle,
+    this.side = TrackedSide.unknown,
   });
 
   final double startAngle;
   final double minimumAngle;
+  final TrackedSide side;
 
   double get excursion => startAngle - minimumAngle;
 }
 
-class SquatRepDetector {
+class SquatRepDetector implements RepDetector {
   SquatRepDetector({
     this.bottomMaximumAngle = 110,
     this.standingMinimumAngle = 160,
@@ -38,13 +42,35 @@ class SquatRepDetector {
   SquatMovementPhase get phase => _phase;
   int get incompleteAttemptCount => _incompleteAttemptCount;
 
-  SquatRepCompletion? addKneeAngle(double angle, {required bool confidenceOk}) {
+  @override
+  RepCompletion? addFrame(MovementFrame frame) {
+    final angle = frame.values[MovementMetric.kneeAngle];
+    final confidence = frame.confidence[MovementMetric.kneeAngle];
+    if (angle == null || confidence == null) return null;
+    final completion = addKneeAngle(
+      angle,
+      confidenceOk: confidence >= 0.6,
+      side: frame.trackedSide,
+    );
+    if (completion == null) return null;
+    return RepCompletion(
+      minimumValues: {MovementMetric.kneeAngle: completion.minimumAngle},
+      maximumValues: {MovementMetric.kneeAngle: completion.startAngle},
+      trackedSide: completion.side,
+    );
+  }
+
+  SquatRepCompletion? addKneeAngle(
+    double angle, {
+    required bool confidenceOk,
+    TrackedSide side = TrackedSide.unknown,
+  }) {
     if (!confidenceOk || !angle.isFinite) return null;
     _lastMovementWasDescending = _lastAngle == null || angle < _lastAngle!;
     final result = switch (_phase) {
       SquatMovementPhase.waitingForStanding => _armFromStanding(angle),
       SquatMovementPhase.waitingForBottom => _detectBottom(angle),
-      SquatMovementPhase.returning => _detectReturn(angle),
+      SquatMovementPhase.returning => _detectReturn(angle, side),
     };
     _lastAngle = angle;
     return result;
@@ -101,7 +127,7 @@ class SquatRepDetector {
     return null;
   }
 
-  SquatRepCompletion? _detectReturn(double angle) {
+  SquatRepCompletion? _detectReturn(double angle, TrackedSide side) {
     if (angle < standingMinimumAngle) {
       if (angle < (_minimumAngle ?? double.infinity)) _minimumAngle = angle;
       return null;
@@ -119,9 +145,11 @@ class SquatRepDetector {
     return SquatRepCompletion(
       startAngle: startAngle,
       minimumAngle: minimumAngle,
+      side: side,
     );
   }
 
+  @override
   void reset() {
     _phase = SquatMovementPhase.waitingForStanding;
     _standingAngle = null;

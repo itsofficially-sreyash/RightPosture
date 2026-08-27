@@ -57,7 +57,7 @@ class ExerciseSelectPage extends ConsumerWidget {
                       onTap: () {
                         ref
                             .read(sessionControllerProvider.notifier)
-                            .startSession();
+                            .prepareSession();
                       },
                       child: const Padding(
                         padding: EdgeInsets.all(AppSpacing.large),

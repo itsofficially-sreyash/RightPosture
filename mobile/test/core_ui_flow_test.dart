@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:right_posture/domain/models.dart';
+import 'package:right_posture/domain/exercise.dart';
 import 'package:right_posture/domain/squat_rep_detector.dart';
 import 'package:right_posture/pose_camera_page.dart';
 import 'package:right_posture/pose_pipeline.dart';
@@ -35,8 +36,45 @@ void main() {
     await tester.tap(find.byKey(const Key('select_squat')));
     expect(
       container.read(sessionControllerProvider).phase,
-      SessionPhase.tracking,
+      SessionPhase.preparing,
     );
+  });
+
+  testWidgets('squat preparation fits compact screen at 200% text scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: PreparationHud(
+                state: SessionState(
+                  phase: SessionPhase.preparing,
+                  selectedExercise: ExerciseId.squat,
+                  placementStable: true,
+                  placementGuidance: 'Position ready',
+                ),
+                instruction: squatExerciseProfile.setupInstruction,
+                onStart: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('start_set')), findsOneWidget);
+    expect(find.text('Position ready'), findsOneWidget);
   });
 
   testWidgets('live HUD shows calibration and ends the set', (tester) async {
@@ -48,7 +86,7 @@ void main() {
           body: LiveSessionHud(
             state: SessionState(
               phase: SessionPhase.tracking,
-              selectedExercise: 'squat',
+              selectedExercise: ExerciseId.squat,
               reps: [calibrationRep(1), calibrationRep(2)],
             ),
             onEnd: () => ended = true,
@@ -71,7 +109,7 @@ void main() {
           body: LiveSessionHud(
             state: SessionState(
               phase: SessionPhase.tracking,
-              selectedExercise: 'squat',
+              selectedExercise: ExerciseId.squat,
               coaching: SquatCoaching.goLower,
             ),
             onEnd: () {},
@@ -143,7 +181,7 @@ void main() {
           body: LiveSessionHud(
             state: SessionState(
               phase: SessionPhase.tracking,
-              selectedExercise: 'squat',
+              selectedExercise: ExerciseId.squat,
               latestFeedback: Rep(
                 number: 4,
                 angles: const {'knee': 100},
@@ -173,7 +211,7 @@ void main() {
     );
     final state = SessionState(
       phase: SessionPhase.complete,
-      selectedExercise: 'squat',
+      selectedExercise: ExerciseId.squat,
       reps: [
         calibrationRep(1),
         calibrationRep(2),
@@ -208,7 +246,7 @@ void main() {
         home: SessionSummaryView(
           state: SessionState(
             phase: SessionPhase.complete,
-            selectedExercise: 'squat',
+            selectedExercise: ExerciseId.squat,
             summary: SessionSummary(
               totalReps: 0,
               formScorePercent: null,
@@ -275,7 +313,7 @@ void main() {
               child: LiveSessionHud(
                 state: SessionState(
                   phase: SessionPhase.tracking,
-                  selectedExercise: 'squat',
+                  selectedExercise: ExerciseId.squat,
                   coaching: SquatCoaching.goLower,
                 ),
                 pipelineStatus: PosePipelineStatus.ready,

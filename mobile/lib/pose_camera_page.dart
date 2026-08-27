@@ -6,8 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'domain/models.dart';
+import 'domain/exercise.dart';
 import 'coaching_cues.dart';
 import 'pose_painter.dart';
+import 'pose_landmark_mapper.dart';
 import 'pose_pipeline.dart';
 import 'pose_pipeline_status.dart';
 import 'session_controller.dart';
@@ -61,10 +63,23 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     if (!identical(snapshot, _consumedSnapshot)) {
       _consumedSnapshot = snapshot;
       final session = ref.read(sessionControllerProvider.notifier);
+      final sessionState = ref.read(sessionControllerProvider);
+      if (sessionState.phase == SessionPhase.preparing ||
+          sessionState.phase == SessionPhase.countdown) {
+        final imageSize = snapshot.imageSize;
+        session.acceptPreparationResult(
+          evaluateSquatPlacement(
+            snapshot.poses.isEmpty ? null : snapshot.poses.first,
+            imageWidth: imageSize?.width ?? 0,
+            imageHeight: imageSize?.height ?? 0,
+          ),
+        );
+      }
       if (snapshot.status == PosePipelineStatus.failed) {
         session.reportFailure(snapshot.error ?? 'Pose pipeline failed');
-      } else if (snapshot.squatSample case final sample?) {
-        session.acceptPoseSample(sample);
+      } else if (sessionState.phase == SessionPhase.tracking) {
+        final sample = snapshot.squatSample;
+        if (sample != null) session.acceptPoseSample(sample);
       }
     }
   }
@@ -139,7 +154,21 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
                 onRetry: _retry,
                 onOpenSettings: _openSettings,
               ),
-              if (shouldShowLiveSessionHud(_pipelineStatus))
+              if ((session.phase == SessionPhase.preparing ||
+                      session.phase == SessionPhase.countdown) &&
+                  shouldShowLiveSessionHud(_pipelineStatus))
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: PreparationHud(
+                    state: session,
+                    instruction: squatExerciseProfile.setupInstruction,
+                    onStart: ref
+                        .read(sessionControllerProvider.notifier)
+                        .startCountdown,
+                  ),
+                ),
+              if (session.phase == SessionPhase.tracking &&
+                  shouldShowLiveSessionHud(_pipelineStatus))
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: LiveSessionHud(
@@ -161,6 +190,80 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
 
 bool shouldShowLiveSessionHud(PosePipelineStatus status) =>
     status != PosePipelineStatus.failed;
+
+class PreparationHud extends StatelessWidget {
+  const PreparationHud({
+    super.key,
+    required this.state,
+    required this.instruction,
+    required this.onStart,
+  });
+
+  final SessionState state;
+  final String instruction;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final countdown = state.countdownValue;
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: 720,
+        maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+      ),
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: Color(0xEE15161B),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppRadius.large),
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.medium),
+          child: countdown == null
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Set up your squat',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.small),
+                    Text(instruction),
+                    const SizedBox(height: AppSpacing.medium),
+                    Semantics(
+                      liveRegion: true,
+                      label: state.placementGuidance,
+                      child: Text(
+                        state.placementGuidance ?? 'Checking position',
+                        key: const Key('placement_guidance'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.medium),
+                    FilledButton(
+                      key: const Key('start_set'),
+                      onPressed: state.placementStable ? onStart : null,
+                      child: const Text('Start set'),
+                    ),
+                  ],
+                )
+              : Semantics(
+                  liveRegion: true,
+                  label: 'Starting in $countdown',
+                  child: Text(
+                    '$countdown',
+                    key: const Key('countdown_value'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.displayLarge,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
 
 class _CameraSurface extends StatelessWidget {
   const _CameraSurface({
