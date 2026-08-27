@@ -1,3 +1,7 @@
+enum SquatMovementPhase { waitingForStanding, waitingForBottom, returning }
+
+enum SquatCoaching { standTall, ready, goLower, depthGood, standUp, tooDeep }
+
 class SquatRepDetector {
   SquatRepDetector({
     this.bottomMaximumAngle = 110,
@@ -6,27 +10,50 @@ class SquatRepDetector {
 
   final double bottomMaximumAngle;
   final double standingMinimumAngle;
-  _SquatPhase _phase = _SquatPhase.waitingForStanding;
+  SquatMovementPhase _phase = SquatMovementPhase.waitingForStanding;
   double? _bottomAngle;
+
+  SquatMovementPhase get phase => _phase;
 
   double? addKneeAngle(double angle, {required bool confidenceOk}) {
     if (!confidenceOk || !angle.isFinite) return null;
     return switch (_phase) {
-      _SquatPhase.waitingForStanding => _armFromStanding(angle),
-      _SquatPhase.waitingForBottom => _detectBottom(angle),
-      _SquatPhase.waitingForReturn => _detectReturn(angle),
+      SquatMovementPhase.waitingForStanding => _armFromStanding(angle),
+      SquatMovementPhase.waitingForBottom => _detectBottom(angle),
+      SquatMovementPhase.returning => _detectReturn(angle),
+    };
+  }
+
+  SquatCoaching coachingFor(double angle) {
+    if (!angle.isFinite) return SquatCoaching.standTall;
+    if (angle < 70) return SquatCoaching.tooDeep;
+    return switch (_phase) {
+      SquatMovementPhase.waitingForStanding =>
+        angle >= standingMinimumAngle
+            ? SquatCoaching.ready
+            : SquatCoaching.standTall,
+      SquatMovementPhase.waitingForBottom =>
+        angle >= standingMinimumAngle
+            ? SquatCoaching.ready
+            : SquatCoaching.goLower,
+      SquatMovementPhase.returning =>
+        angle <= bottomMaximumAngle
+            ? SquatCoaching.depthGood
+            : SquatCoaching.standUp,
     };
   }
 
   double? _armFromStanding(double angle) {
-    if (angle >= standingMinimumAngle) _phase = _SquatPhase.waitingForBottom;
+    if (angle >= standingMinimumAngle) {
+      _phase = SquatMovementPhase.waitingForBottom;
+    }
     return null;
   }
 
   double? _detectBottom(double angle) {
     if (angle <= bottomMaximumAngle) {
       _bottomAngle = angle;
-      _phase = _SquatPhase.waitingForReturn;
+      _phase = SquatMovementPhase.returning;
     }
     return null;
   }
@@ -38,14 +65,12 @@ class SquatRepDetector {
     }
     final result = _bottomAngle;
     _bottomAngle = null;
-    _phase = _SquatPhase.waitingForBottom;
+    _phase = SquatMovementPhase.waitingForBottom;
     return result;
   }
 
   void reset() {
-    _phase = _SquatPhase.waitingForStanding;
+    _phase = SquatMovementPhase.waitingForStanding;
     _bottomAngle = null;
   }
 }
-
-enum _SquatPhase { waitingForStanding, waitingForBottom, waitingForReturn }

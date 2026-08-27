@@ -39,7 +39,12 @@ class RepEvaluator {
         angles: Map.unmodifiable(angles),
         status: RepStatus.degraded,
         responsibleJoint: absoluteFailure,
-        reason: '$absoluteFailure angle outside acceptable range',
+        reason: absoluteFailure == 'knee'
+            ? angles[absoluteFailure]! <
+                      thresholds.joints[absoluteFailure]!.minimum
+                  ? 'Next rep: do not go as deep'
+                  : 'Next rep: go lower'
+            : '$absoluteFailure angle outside acceptable range',
       );
     }
 
@@ -76,10 +81,20 @@ class RepEvaluator {
       angles: Map.unmodifiable(angles),
       status: status,
       responsibleJoint: largestDeviationJoint,
-      reason: status == RepStatus.degraded
-          ? '$largestDeviationJoint deviation persisted for $count reps'
-          : '$largestDeviationJoint angle deviated from baseline',
+      reason: _directionalReason(
+        joint: largestDeviationJoint,
+        angle: angles[largestDeviationJoint]!,
+      ),
     );
+  }
+
+  String _directionalReason({required String joint, required double angle}) {
+    if (joint == 'knee') {
+      return angle > _baseline![joint]!
+          ? 'Next rep: go slightly lower'
+          : 'Next rep: do not go as deep';
+    }
+    return '$joint angle changed from calibration';
   }
 
   void reset() {

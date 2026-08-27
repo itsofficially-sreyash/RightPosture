@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:right_posture/domain/joint_angle.dart';
+import 'package:right_posture/pose_landmark_mapper.dart';
 import 'package:right_posture/pose_painter.dart';
 
 void main() {
@@ -82,5 +84,71 @@ void main() {
       ),
       Offset.zero,
     );
+  });
+
+  test('smooths and interpolates display landmarks only', () {
+    final start = [
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(0, 0),
+          confidence: 0.8,
+        ),
+      }),
+    ];
+    final end = [
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(100, 40),
+          confidence: 0.9,
+        ),
+      }),
+    ];
+
+    final smoothed = smoothMappedPoses(start, end);
+    expect(smoothed.single.landmarks[BodyJoint.leftKnee]!.point.x, 75);
+    expect(smoothed.single.landmarks[BodyJoint.leftKnee]!.confidence, 0.9);
+    final halfway = interpolateMappedPoses(start, smoothed, 0.5);
+    expect(halfway.single.landmarks[BodyJoint.leftKnee]!.point.x, 37.5);
+  });
+
+  test('tracking loss clears display landmarks without interpolation', () {
+    final start = [
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(10, 10),
+          confidence: 0.9,
+        ),
+      }),
+    ];
+    expect(smoothMappedPoses(start, const []), isEmpty);
+  });
+
+  testWidgets('reduced motion bypasses overlay animation', (tester) async {
+    final poses = [
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(10, 10),
+          confidence: 0.9,
+        ),
+      }),
+    ];
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: PoseOverlay(
+            poses: poses,
+            imageSize: const Size(100, 100),
+            rotationDegrees: 0,
+            mirrored: false,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(AnimatedBuilder), findsNothing);
+    expect(find.byType(CustomPaint), findsOneWidget);
+    expect(poseInterpolationDuration, const Duration(milliseconds: 50));
   });
 }

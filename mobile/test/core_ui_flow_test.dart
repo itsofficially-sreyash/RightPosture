@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:right_posture/domain/models.dart';
+import 'package:right_posture/domain/squat_rep_detector.dart';
 import 'package:right_posture/pose_camera_page.dart';
 import 'package:right_posture/pose_pipeline.dart';
 import 'package:right_posture/session_controller.dart';
+import 'package:right_posture/settings_controller.dart';
 import 'package:right_posture/ui/app_theme.dart';
 import 'package:right_posture/ui/exercise_select_page.dart';
 import 'package:right_posture/ui/session_summary_page.dart';
+import 'package:right_posture/ui/settings_page.dart';
 
 void main() {
+  test('failed pipeline hides live HUD so recovery actions stay reachable', () {
+    expect(shouldShowLiveSessionHud(PosePipelineStatus.failed), isFalse);
+    expect(shouldShowLiveSessionHud(PosePipelineStatus.noPerson), isTrue);
+  });
+
   testWidgets('squat card starts a tracking session', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -53,6 +61,76 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     await tester.tap(find.byKey(const Key('end_session')));
     expect(ended, isTrue);
+  });
+
+  testWidgets('live HUD shows compact coaching text', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: LiveSessionHud(
+            state: SessionState(
+              phase: SessionPhase.tracking,
+              selectedExercise: 'squat',
+              coaching: SquatCoaching.goLower,
+            ),
+            onEnd: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Go lower'), findsOneWidget);
+    final text = tester.widget<Text>(find.text('Go lower'));
+    expect(text.maxLines, 2);
+  });
+
+  testWidgets('settings independently toggle voice and haptics', (
+    tester,
+  ) async {
+    final storage = WidgetSettingsStorage();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [settingsStorageProvider.overrideWithValue(storage)],
+        child: MaterialApp(theme: buildAppTheme(), home: const SettingsPage()),
+      ),
+    );
+
+    expect(find.text('Voice coaching'), findsOneWidget);
+    expect(find.text('Haptic coaching'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('tts_setting')));
+    await tester.tap(find.byKey(const Key('haptics_setting')));
+    await tester.pump();
+    expect(storage.tts, isFalse);
+    expect(storage.haptics, isFalse);
+  });
+
+  testWidgets('settings fit compact screen at 200% text scale', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsStorageProvider.overrideWithValue(WidgetSettingsStorage()),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 640),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: const SettingsPage(),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Voice coaching'), findsOneWidget);
+    expect(find.text('Haptic coaching'), findsOneWidget);
   });
 
   testWidgets('live HUD replaces stale verdict when tracking is lost', (
@@ -198,8 +276,9 @@ void main() {
                 state: SessionState(
                   phase: SessionPhase.tracking,
                   selectedExercise: 'squat',
+                  coaching: SquatCoaching.goLower,
                 ),
-                pipelineStatus: PosePipelineStatus.lowConfidence,
+                pipelineStatus: PosePipelineStatus.ready,
                 onEnd: () {},
               ),
             ),
@@ -210,6 +289,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byKey(const Key('end_session')), findsOneWidget);
+    expect(find.text('Go lower'), findsOneWidget);
   });
 }
 
@@ -218,3 +298,17 @@ Rep calibrationRep(int number) => Rep(
   angles: const {'knee': 100},
   status: RepStatus.calibrating,
 );
+
+class WidgetSettingsStorage implements SettingsStorage {
+  bool? tts;
+  bool? haptics;
+
+  @override
+  Future<CoachingPreferences> load() async => const CoachingPreferences();
+
+  @override
+  Future<void> saveHaptics(bool value) async => haptics = value;
+
+  @override
+  Future<void> saveTts(bool value) async => tts = value;
+}

@@ -74,6 +74,21 @@ void main() {
       }
       expect(detector.addKneeAngle(170, confidenceOk: true), 90);
     });
+
+    test('provides phase-aware coaching', () {
+      final detector = SquatRepDetector();
+      expect(detector.coachingFor(140), SquatCoaching.standTall);
+      detector.addKneeAngle(170, confidenceOk: true);
+      expect(detector.coachingFor(170), SquatCoaching.ready);
+      detector.addKneeAngle(130, confidenceOk: true);
+      expect(detector.coachingFor(130), SquatCoaching.goLower);
+      detector.addKneeAngle(100, confidenceOk: true);
+      expect(detector.coachingFor(100), SquatCoaching.depthGood);
+      expect(detector.coachingFor(120), SquatCoaching.standUp);
+      expect(detector.coachingFor(60), SquatCoaching.tooDeep);
+      detector.addKneeAngle(170, confidenceOk: true);
+      expect(detector.coachingFor(170), SquatCoaching.ready);
+    });
   });
 
   group('RepEvaluator', () {
@@ -117,6 +132,19 @@ void main() {
       );
     });
 
+    test('directional feedback explains depth correction', () {
+      final evaluator = calibratedEvaluator();
+      expect(
+        evaluator.evaluate({'knee': 125}, confidenceOk: true)!.reason,
+        'Next rep: go slightly lower',
+      );
+      evaluator.evaluate({'knee': 110}, confidenceOk: true);
+      expect(
+        evaluator.evaluate({'knee': 95}, confidenceOk: true)!.reason,
+        'Next rep: do not go as deep',
+      );
+    });
+
     test(
       'absolute failure degrades immediately and bad confidence is ignored',
       () {
@@ -126,6 +154,7 @@ void main() {
         expect(rep.number, 4);
         expect(rep.status, RepStatus.degraded);
         expect(rep.responsibleJoint, 'knee');
+        expect(rep.reason, 'Next rep: do not go as deep');
       },
     );
 

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
+import 'domain/joint_angle.dart';
 import 'pose_landmark_mapper.dart';
+
+const poseInterpolationDuration = Duration(milliseconds: 50);
 
 Offset translatePosePoint({
   required Offset point,
@@ -22,6 +25,135 @@ Offset translatePosePoint({
   final offsetX = (canvasSize.width - sourceWidth * scale) / 2;
   final offsetY = (canvasSize.height - sourceHeight * scale) / 2;
   return Offset(sourceX * scale + offsetX, point.dy * scale + offsetY);
+}
+
+List<MappedPose> smoothMappedPoses(
+  List<MappedPose> previous,
+  List<MappedPose> current, {
+  double alpha = 0.75,
+}) {
+  if (previous.length != current.length || current.isEmpty) return current;
+  return [
+    for (var index = 0; index < current.length; index++)
+      MappedPose({
+        for (final entry in current[index].landmarks.entries)
+          entry.key: _blendLandmark(
+            previous[index].landmarks[entry.key],
+            entry.value,
+            alpha,
+          ),
+      }),
+  ];
+}
+
+List<MappedPose> interpolateMappedPoses(
+  List<MappedPose> start,
+  List<MappedPose> end,
+  double progress,
+) => smoothMappedPoses(start, end, alpha: progress.clamp(0, 1));
+
+LandmarkSample _blendLandmark(
+  LandmarkSample? previous,
+  LandmarkSample current,
+  double alpha,
+) {
+  if (previous == null) return current;
+  return LandmarkSample(
+    point: Point2(
+      previous.point.x + (current.point.x - previous.point.x) * alpha,
+      previous.point.y + (current.point.y - previous.point.y) * alpha,
+    ),
+    confidence: current.confidence,
+  );
+}
+
+class PoseOverlay extends StatefulWidget {
+  const PoseOverlay({
+    super.key,
+    required this.poses,
+    required this.imageSize,
+    required this.rotationDegrees,
+    required this.mirrored,
+    this.interpolate = true,
+  });
+
+  final List<MappedPose> poses;
+  final Size imageSize;
+  final int rotationDegrees;
+  final bool mirrored;
+  final bool interpolate;
+
+  @override
+  State<PoseOverlay> createState() => _PoseOverlayState();
+}
+
+class _PoseOverlayState extends State<PoseOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late List<MappedPose> _from;
+  late List<MappedPose> _target;
+
+  @override
+  void initState() {
+    super.initState();
+    _from = widget.poses;
+    _target = widget.poses;
+    _controller = AnimationController(
+      vsync: this,
+      duration: poseInterpolationDuration,
+      value: 1,
+    );
+  }
+
+  @override
+  void didUpdateWidget(PoseOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.poses, widget.poses)) return;
+    if (widget.poses.isEmpty || !widget.interpolate) {
+      _controller.stop();
+      _from = widget.poses;
+      _target = widget.poses;
+      return;
+    }
+    _from = interpolateMappedPoses(_from, _target, _controller.value);
+    _target = smoothMappedPoses(oldWidget.poses, widget.poses);
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.interpolate || MediaQuery.disableAnimationsOf(context)) {
+      return CustomPaint(
+        painter: PosePainter(
+          poses: _target,
+          imageSize: widget.imageSize,
+          rotationDegrees: widget.rotationDegrees,
+          mirrored: widget.mirrored,
+        ),
+      );
+    }
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => CustomPaint(
+        painter: PosePainter(
+          poses: interpolateMappedPoses(
+            _from,
+            _target,
+            Curves.easeOut.transform(_controller.value),
+          ),
+          imageSize: widget.imageSize,
+          rotationDegrees: widget.rotationDegrees,
+          mirrored: widget.mirrored,
+        ),
+      ),
+    );
+  }
 }
 
 class PosePainter extends CustomPainter {

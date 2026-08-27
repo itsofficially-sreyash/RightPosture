@@ -27,6 +27,18 @@ void main() {
     expect(result.squatSample!.side, 'right');
   });
 
+  test('metric confidence uses weakest required landmark', () {
+    final result = mapPoses([
+      poseWithLegs(
+        leftConfidence: 0.9,
+        leftKneeConfidence: 0.65,
+        rightConfidence: 0.2,
+      ),
+    ]);
+
+    expect(result.squatSample!.confidence, 0.65);
+  });
+
   test('reports low confidence when neither side is reliable', () {
     final result = mapPoses([
       poseWithLegs(leftConfidence: 0.2, rightConfidence: 0.3),
@@ -49,6 +61,7 @@ void main() {
 Pose poseWithLegs({
   required double leftConfidence,
   required double rightConfidence,
+  double? leftKneeConfidence,
 }) {
   return Pose(
     landmarks: {
@@ -62,7 +75,7 @@ Pose poseWithLegs({
         PoseLandmarkType.leftKnee,
         0,
         0,
-        leftConfidence,
+        leftKneeConfidence ?? leftConfidence,
       ),
       PoseLandmarkType.leftAnkle: landmark(
         PoseLandmarkType.leftAnkle,

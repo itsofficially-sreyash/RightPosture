@@ -6,10 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'domain/models.dart';
+import 'coaching_cues.dart';
 import 'pose_painter.dart';
 import 'pose_pipeline.dart';
 import 'pose_pipeline_status.dart';
 import 'session_controller.dart';
+import 'settings_controller.dart';
 import 'ui/app_theme.dart';
 
 class PoseCameraPage extends ConsumerStatefulWidget {
@@ -21,7 +23,9 @@ class PoseCameraPage extends ConsumerStatefulWidget {
 
 class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     with WidgetsBindingObserver {
+  static const _settingsChannel = MethodChannel('right_posture/app_settings');
   late final PosePipeline _pipeline;
+  late final CoachingCueCoordinator _cues;
   PosePipelineSnapshot? _consumedSnapshot;
   PosePipelineStatus _pipelineStatus = PosePipelineStatus.initializing;
   String? _pipelineError;
@@ -30,6 +34,10 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _cues = CoachingCueCoordinator.production();
+    if (ref.read(settingsControllerProvider).ttsEnabled) {
+      unawaited(_cues.prepare());
+    }
     _pipeline = PosePipeline()..addListener(_refresh);
     unawaited(_pipeline.start());
   }
@@ -37,6 +45,12 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
   void _refresh() {
     if (!mounted) return;
     final snapshot = _pipeline.snapshot;
+    if (snapshot.status == PosePipelineStatus.noPerson ||
+        snapshot.status == PosePipelineStatus.lowConfidence ||
+        snapshot.status == PosePipelineStatus.failed) {
+      _cues.interrupt();
+      ref.read(sessionControllerProvider.notifier).trackingInterrupted();
+    }
     if (snapshot.status != _pipelineStatus ||
         snapshot.error != _pipelineError) {
       setState(() {
@@ -60,14 +74,28 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     await _pipeline.retry();
   }
 
+  Future<void> _openSettings() async {
+    try {
+      await _settingsChannel.invokeMethod<void>('open');
+    } on PlatformException {
+      // Retry remains available when Android cannot open settings.
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       unawaited(_pipeline.pause());
+      ref.read(sessionControllerProvider.notifier).trackingInterrupted();
     } else if (state == AppLifecycleState.resumed) {
       unawaited(_pipeline.start());
     }
+  }
+
+  Future<void> _switchCamera() async {
+    ref.read(sessionControllerProvider.notifier).trackingInterrupted();
+    await _pipeline.switchCamera();
   }
 
   @override
@@ -75,12 +103,25 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     WidgetsBinding.instance.removeObserver(this);
     _pipeline.removeListener(_refresh);
     unawaited(_pipeline.close());
+    unawaited(_cues.close());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionControllerProvider);
+    ref.listen(sessionControllerProvider, (_, next) {
+      _cues.handle(
+        preferences: ref.read(settingsControllerProvider),
+        coaching: next.coaching,
+        latestRep: next.latestFeedback,
+      );
+    });
+    ref.listen(settingsControllerProvider, (previous, next) {
+      if (next.ttsEnabled && !(previous?.ttsEnabled ?? false)) {
+        unawaited(_cues.prepare());
+      }
+    });
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -92,18 +133,24 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _CameraSurface(pipeline: _pipeline, onRetry: _retry),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: LiveSessionHud(
-                  state: session,
-                  pipelineStatus: _pipelineStatus,
-                  pipelineError: _pipelineError,
-                  onEnd: ref
-                      .read(sessionControllerProvider.notifier)
-                      .endSession,
-                ),
+              _CameraSurface(
+                pipeline: _pipeline,
+                onSwitchCamera: _switchCamera,
+                onRetry: _retry,
+                onOpenSettings: _openSettings,
               ),
+              if (shouldShowLiveSessionHud(_pipelineStatus))
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: LiveSessionHud(
+                    state: session,
+                    pipelineStatus: _pipelineStatus,
+                    pipelineError: _pipelineError,
+                    onEnd: ref
+                        .read(sessionControllerProvider.notifier)
+                        .endSession,
+                  ),
+                ),
             ],
           ),
         ),
@@ -112,11 +159,21 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
   }
 }
 
+bool shouldShowLiveSessionHud(PosePipelineStatus status) =>
+    status != PosePipelineStatus.failed;
+
 class _CameraSurface extends StatelessWidget {
-  const _CameraSurface({required this.pipeline, required this.onRetry});
+  const _CameraSurface({
+    required this.pipeline,
+    required this.onSwitchCamera,
+    required this.onRetry,
+    required this.onOpenSettings,
+  });
 
   final PosePipeline pipeline;
+  final VoidCallback onSwitchCamera;
   final VoidCallback onRetry;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +185,11 @@ class _CameraSurface extends StatelessWidget {
         if (snapshot.status == PosePipelineStatus.failed ||
             controller == null ||
             !controller.value.isInitialized) {
-          return PosePipelineStatusPanel(snapshot: snapshot, onRetry: onRetry);
+          return PosePipelineStatusPanel(
+            snapshot: snapshot,
+            onRetry: onRetry,
+            onOpenSettings: onOpenSettings,
+          );
         }
         final orientation = controller.value.deviceOrientation;
         final landscape =
@@ -149,13 +210,13 @@ class _CameraSurface extends StatelessWidget {
                     child: snapshot.imageSize == null
                         ? null
                         : RepaintBoundary(
-                            child: CustomPaint(
-                              painter: PosePainter(
-                                poses: snapshot.poses,
-                                imageSize: snapshot.imageSize!,
-                                rotationDegrees: snapshot.rotationDegrees,
-                                mirrored: snapshot.mirrored,
-                              ),
+                            child: PoseOverlay(
+                              poses: snapshot.poses,
+                              imageSize: snapshot.imageSize!,
+                              rotationDegrees: snapshot.rotationDegrees,
+                              mirrored: snapshot.mirrored,
+                              interpolate:
+                                  snapshot.status == PosePipelineStatus.ready,
                             ),
                           ),
                   ),
@@ -168,6 +229,7 @@ class _CameraSurface extends StatelessWidget {
               child: PosePipelineStatusPanel(
                 snapshot: snapshot,
                 onRetry: onRetry,
+                onOpenSettings: onOpenSettings,
               ),
             ),
             if (pipeline.canSwitchCamera)
@@ -176,7 +238,7 @@ class _CameraSurface extends StatelessWidget {
                 right: 12,
                 child: IconButton.filled(
                   key: const Key('camera_switch_button'),
-                  onPressed: pipeline.switchCamera,
+                  onPressed: onSwitchCamera,
                   icon: const Icon(Icons.cameraswitch),
                   tooltip: 'Switch camera',
                 ),
@@ -212,6 +274,7 @@ class LiveSessionHud extends StatelessWidget {
         pipelineStatus == PosePipelineStatus.noPerson ||
         pipelineStatus == PosePipelineStatus.lowConfidence ||
         pipelineStatus == PosePipelineStatus.failed;
+    final coaching = trackingInterrupted ? null : state.coaching;
     final (icon, color, status) = switch (pipelineStatus) {
       PosePipelineStatus.noPerson => (
         Icons.person_off,
@@ -266,6 +329,50 @@ class LiveSessionHud extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (coaching != null) ...[
+                Semantics(
+                  liveRegion: true,
+                  label: coachingText(coaching),
+                  child: AnimatedSwitcher(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.96, end: 1).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
+                          ),
+                        ),
+                        child: child,
+                      ),
+                    ),
+                    child: DecoratedBox(
+                      key: ValueKey(coaching),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(AppRadius.medium),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.medium,
+                          vertical: AppSpacing.small,
+                        ),
+                        child: Text(
+                          coachingText(coaching),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.small),
+              ],
               Row(
                 children: [
                   Semantics(

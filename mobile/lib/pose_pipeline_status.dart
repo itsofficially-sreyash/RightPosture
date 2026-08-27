@@ -8,11 +8,13 @@ class PosePipelineStatusPanel extends StatelessWidget {
     super.key,
     required this.snapshot,
     required this.onRetry,
+    this.onOpenSettings,
     this.showDiagnostics = kDebugMode,
   });
 
   final PosePipelineSnapshot snapshot;
   final VoidCallback onRetry;
+  final VoidCallback? onOpenSettings;
   final bool showDiagnostics;
 
   @override
@@ -25,18 +27,34 @@ class PosePipelineStatusPanel extends StatelessWidget {
       );
     }
     if (snapshot.status == PosePipelineStatus.failed) {
+      final permissionDenied =
+          snapshot.failureKind == PosePipelineFailureKind.permissionDenied;
       return Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                snapshot.error ?? 'Camera failed',
+                permissionDenied
+                    ? 'Camera permission is required to track your posture. '
+                          'Allow camera access in Android settings, then try again.'
+                    : snapshot.error ?? 'Camera failed',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              FilledButton(onPressed: onRetry, child: const Text('Retry')),
+              if (permissionDenied && onOpenSettings != null) ...[
+                FilledButton(
+                  key: const Key('open_app_settings'),
+                  onPressed: onOpenSettings,
+                  child: const Text('Open settings'),
+                ),
+                const SizedBox(height: 8),
+              ],
+              OutlinedButton(
+                onPressed: onRetry,
+                child: const Text('Try again'),
+              ),
             ],
           ),
         ),

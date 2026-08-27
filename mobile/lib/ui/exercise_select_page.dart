@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../session_controller.dart';
 import 'app_theme.dart';
+import 'settings_page.dart';
 
 class ExerciseSelectPage extends ConsumerWidget {
   const ExerciseSelectPage({super.key});
@@ -17,6 +18,19 @@ class ExerciseSelectPage extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.large),
               children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    key: const Key('open_settings'),
+                    tooltip: 'Coaching settings',
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SettingsPage(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.settings),
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.extraLarge),
                 Text(
                   'RIGHT POSTURE',

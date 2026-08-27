@@ -12,6 +12,8 @@ import 'pose_landmark_mapper.dart';
 
 enum PosePipelineStatus { initializing, ready, noPerson, lowConfidence, failed }
 
+enum PosePipelineFailureKind { permissionDenied, camera, processing }
+
 class PosePipelineSnapshot {
   PosePipelineSnapshot({
     required this.status,
@@ -24,6 +26,7 @@ class PosePipelineSnapshot {
     this.processedFrames = 0,
     this.processingTime = Duration.zero,
     this.error,
+    this.failureKind,
   }) : poses = List.unmodifiable(poses);
 
   final PosePipelineStatus status;
@@ -36,6 +39,7 @@ class PosePipelineSnapshot {
   final int processedFrames;
   final Duration processingTime;
   final String? error;
+  final PosePipelineFailureKind? failureKind;
 }
 
 class PosePipeline extends ChangeNotifier {
@@ -105,6 +109,7 @@ class PosePipeline extends ChangeNotifier {
         PosePipelineSnapshot(
           status: PosePipelineStatus.failed,
           error: error.description ?? error.code,
+          failureKind: cameraFailureKind(error.code),
         ),
       );
     } catch (error) {
@@ -114,6 +119,7 @@ class PosePipeline extends ChangeNotifier {
         PosePipelineSnapshot(
           status: PosePipelineStatus.failed,
           error: error.toString(),
+          failureKind: PosePipelineFailureKind.camera,
         ),
       );
     }
@@ -175,6 +181,7 @@ class PosePipeline extends ChangeNotifier {
           PosePipelineSnapshot(
             status: PosePipelineStatus.failed,
             error: 'Pose processing failed: $error',
+            failureKind: PosePipelineFailureKind.processing,
           ),
         );
       }
@@ -251,6 +258,13 @@ int oppositeLensCameraIndex(
       : CameraLensDirection.front;
   return cameras.indexWhere((camera) => camera.lensDirection == target);
 }
+
+PosePipelineFailureKind cameraFailureKind(String code) => switch (code) {
+  'CameraAccessDenied' ||
+  'CameraAccessDeniedWithoutPrompt' ||
+  'CameraAccessRestricted' => PosePipelineFailureKind.permissionDenied,
+  _ => PosePipelineFailureKind.camera,
+};
 
 int _rotationDegrees(InputImageRotation? rotation) => switch (rotation) {
   InputImageRotation.rotation90deg => 90,
