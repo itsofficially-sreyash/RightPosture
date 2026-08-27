@@ -2,26 +2,52 @@ enum SquatMovementPhase { waitingForStanding, waitingForBottom, returning }
 
 enum SquatCoaching { standTall, ready, goLower, depthGood, standUp, tooDeep }
 
+class SquatRepCompletion {
+  const SquatRepCompletion({
+    required this.startAngle,
+    required this.minimumAngle,
+  });
+
+  final double startAngle;
+  final double minimumAngle;
+
+  double get excursion => startAngle - minimumAngle;
+}
+
 class SquatRepDetector {
   SquatRepDetector({
     this.bottomMaximumAngle = 110,
     this.standingMinimumAngle = 160,
-  }) : assert(bottomMaximumAngle < standingMinimumAngle);
+    this.movementStartExcursion = 10,
+    this.minimumAttemptExcursion = 25,
+  }) : assert(bottomMaximumAngle < standingMinimumAngle),
+       assert(movementStartExcursion > 0),
+       assert(minimumAttemptExcursion >= movementStartExcursion);
 
   final double bottomMaximumAngle;
   final double standingMinimumAngle;
+  final double movementStartExcursion;
+  final double minimumAttemptExcursion;
   SquatMovementPhase _phase = SquatMovementPhase.waitingForStanding;
-  double? _bottomAngle;
+  double? _standingAngle;
+  double? _minimumAngle;
+  double? _lastAngle;
+  bool _lastMovementWasDescending = false;
+  int _incompleteAttemptCount = 0;
 
   SquatMovementPhase get phase => _phase;
+  int get incompleteAttemptCount => _incompleteAttemptCount;
 
-  double? addKneeAngle(double angle, {required bool confidenceOk}) {
+  SquatRepCompletion? addKneeAngle(double angle, {required bool confidenceOk}) {
     if (!confidenceOk || !angle.isFinite) return null;
-    return switch (_phase) {
+    _lastMovementWasDescending = _lastAngle == null || angle < _lastAngle!;
+    final result = switch (_phase) {
       SquatMovementPhase.waitingForStanding => _armFromStanding(angle),
       SquatMovementPhase.waitingForBottom => _detectBottom(angle),
       SquatMovementPhase.returning => _detectReturn(angle),
     };
+    _lastAngle = angle;
+    return result;
   }
 
   SquatCoaching coachingFor(double angle) {
@@ -39,38 +65,69 @@ class SquatRepDetector {
       SquatMovementPhase.returning =>
         angle <= bottomMaximumAngle
             ? SquatCoaching.depthGood
+            : _isDescending(angle)
+            ? SquatCoaching.goLower
             : SquatCoaching.standUp,
     };
   }
 
-  double? _armFromStanding(double angle) {
+  bool _isDescending(double angle) {
+    final lastAngle = _lastAngle;
+    if (lastAngle == null || angle == lastAngle) {
+      return _lastMovementWasDescending;
+    }
+    return angle < lastAngle;
+  }
+
+  SquatRepCompletion? _armFromStanding(double angle) {
     if (angle >= standingMinimumAngle) {
+      _standingAngle = angle;
       _phase = SquatMovementPhase.waitingForBottom;
     }
     return null;
   }
 
-  double? _detectBottom(double angle) {
-    if (angle <= bottomMaximumAngle) {
-      _bottomAngle = angle;
+  SquatRepCompletion? _detectBottom(double angle) {
+    if (angle >= standingMinimumAngle) {
+      _standingAngle = angle;
+      return null;
+    }
+    final standingAngle = _standingAngle;
+    if (standingAngle != null &&
+        standingAngle - angle >= movementStartExcursion) {
+      _minimumAngle = angle;
       _phase = SquatMovementPhase.returning;
     }
     return null;
   }
 
-  double? _detectReturn(double angle) {
+  SquatRepCompletion? _detectReturn(double angle) {
     if (angle < standingMinimumAngle) {
-      if (angle < (_bottomAngle ?? double.infinity)) _bottomAngle = angle;
+      if (angle < (_minimumAngle ?? double.infinity)) _minimumAngle = angle;
       return null;
     }
-    final result = _bottomAngle;
-    _bottomAngle = null;
+    final startAngle = _standingAngle!;
+    final minimumAngle = _minimumAngle!;
+    final excursion = startAngle - minimumAngle;
+    _standingAngle = angle;
+    _minimumAngle = null;
     _phase = SquatMovementPhase.waitingForBottom;
-    return result;
+    if (excursion < minimumAttemptExcursion) {
+      _incompleteAttemptCount++;
+      return null;
+    }
+    return SquatRepCompletion(
+      startAngle: startAngle,
+      minimumAngle: minimumAngle,
+    );
   }
 
   void reset() {
     _phase = SquatMovementPhase.waitingForStanding;
-    _bottomAngle = null;
+    _standingAngle = null;
+    _minimumAngle = null;
+    _lastAngle = null;
+    _lastMovementWasDescending = false;
+    _incompleteAttemptCount = 0;
   }
 }

@@ -102,6 +102,21 @@ void main() {
     expect(container.read(sessionControllerProvider).reps, hasLength(1));
   });
 
+  test('deliberate shallow squat completes and receives range feedback', () {
+    controller.startSession();
+    for (var i = 0; i < 3; i++) {
+      completeRep(controller, 100);
+    }
+
+    completeRep(controller, 145);
+
+    final rep = container.read(sessionControllerProvider).reps.last;
+    expect(rep.number, 4);
+    expect(rep.angles['knee'], 145);
+    expect(rep.status, RepStatus.degraded);
+    expect(rep.reason, 'Next rep: go lower');
+  });
+
   test('end session stops evaluation and reset clears all state', () {
     controller.startSession();
     completeRep(controller, 100);

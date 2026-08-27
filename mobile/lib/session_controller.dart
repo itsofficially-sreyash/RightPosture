@@ -69,12 +69,12 @@ class SessionController extends Notifier<SessionState> {
     if (sample.side != _trackedSide) return;
     final smoothedAngle = _kneeAngleSmoother.add(sample.kneeAngle);
     if (smoothedAngle == null) return;
-    final bottomAngle = _repDetector.addKneeAngle(
+    final completion = _repDetector.addKneeAngle(
       smoothedAngle,
       confidenceOk: confidenceOk,
     );
     final coaching = _repDetector.coachingFor(smoothedAngle);
-    if (bottomAngle == null) {
+    if (completion == null) {
       if (coaching == state.coaching) return;
       state = SessionState(
         phase: state.phase,
@@ -86,7 +86,9 @@ class SessionController extends Notifier<SessionState> {
       );
       return;
     }
-    final rep = _evaluator.evaluate({'knee': bottomAngle}, confidenceOk: true);
+    final rep = _evaluator.evaluate({
+      'knee': completion.minimumAngle,
+    }, confidenceOk: true);
     if (rep == null) return;
     _trackedSide = null;
     _kneeAngleSmoother.reset();

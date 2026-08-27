@@ -46,17 +46,45 @@ void main() {
       expect(
         [170.0, 100.0, 170.0]
             .map((angle) => detector.addKneeAngle(angle, confidenceOk: true))
-            .whereType<double>(),
+            .whereType<SquatRepCompletion>(),
         hasLength(1),
       );
     });
 
-    test('does not count partial movement or boundary noise', () {
+    test('does not count standing jitter', () {
       final detector = SquatRepDetector();
-      final results = [170.0, 150.0, 161.0, 130.0, 170.0]
+      final results = [170.0, 158.0, 155.0, 160.0, 170.0]
           .map((angle) => detector.addKneeAngle(angle, confidenceOk: true))
-          .whereType<double>();
+          .whereType<SquatRepCompletion>();
       expect(results, isEmpty);
+      expect(detector.incompleteAttemptCount, 1);
+    });
+
+    test('completes deliberate shallow attempt with extrema', () {
+      final detector = SquatRepDetector();
+      SquatRepCompletion? completion;
+      for (final angle in [170.0, 150.0, 145.0, 165.0]) {
+        completion =
+            detector.addKneeAngle(angle, confidenceOk: true) ?? completion;
+      }
+
+      expect(completion, isNotNull);
+      expect(completion!.startAngle, 170);
+      expect(completion.minimumAngle, 145);
+      expect(completion.excursion, 25);
+    });
+
+    test('abandoned attempt stays separate from completed reps', () {
+      final detector = SquatRepDetector();
+      final results = [170.0, 150.0, 140.0]
+          .map((angle) => detector.addKneeAngle(angle, confidenceOk: true))
+          .whereType<SquatRepCompletion>();
+
+      expect(results, isEmpty);
+      expect(detector.incompleteAttemptCount, 0);
+      detector.reset();
+      expect(detector.phase, SquatMovementPhase.waitingForStanding);
+      expect(detector.incompleteAttemptCount, 0);
     });
 
     test('requires initial standing and ignores low confidence', () {
@@ -72,7 +100,9 @@ void main() {
       for (final angle in [170.0, 105.0, 90.0]) {
         expect(detector.addKneeAngle(angle, confidenceOk: true), isNull);
       }
-      expect(detector.addKneeAngle(170, confidenceOk: true), 90);
+      final completion = detector.addKneeAngle(170, confidenceOk: true);
+      expect(completion!.minimumAngle, 90);
+      expect(completion.excursion, 80);
     });
 
     test('provides phase-aware coaching', () {
