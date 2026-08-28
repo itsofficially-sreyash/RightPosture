@@ -18,6 +18,8 @@ enum MovementMetric {
   torsoLean,
   torsoVerticalPosition,
   armElevation,
+  leftArmElevation,
+  rightArmElevation,
   stanceWidth,
   wristHeightSymmetry,
   ankleHeightSymmetry,
@@ -179,4 +181,71 @@ final bicepCurlExerciseProfile = ExerciseProfile(
   },
   setupInstruction:
       'Face the camera with shoulders, elbows, wrists, and hips visible. Start with both arms lowered.',
+);
+
+final lateralRaiseExerciseProfile = ExerciseProfile(
+  id: ExerciseId.lateralRaise,
+  displayName: 'Lateral Raise',
+  recommendedView: CameraView.front,
+  requiredLandmarks: const {
+    BodyJoint.leftShoulder,
+    BodyJoint.rightShoulder,
+    BodyJoint.leftElbow,
+    BodyJoint.rightElbow,
+    BodyJoint.leftWrist,
+    BodyJoint.rightWrist,
+    BodyJoint.leftHip,
+    BodyJoint.rightHip,
+  },
+  phaseMetrics: const {
+    MovementMetric.leftArmElevation,
+    MovementMetric.rightArmElevation,
+    MovementMetric.leftElbowAngle,
+    MovementMetric.rightElbowAngle,
+    MovementMetric.torsoLean,
+  },
+  thresholds: const {
+    MovementMetric.leftArmElevation: MetricThreshold(minimum: 70, maximum: 110),
+    MovementMetric.rightArmElevation: MetricThreshold(
+      minimum: 70,
+      maximum: 110,
+    ),
+  },
+  setupInstruction:
+      'Face the camera with shoulders, elbows, wrists, and hips visible. Start with both arms at your sides.',
+);
+
+final shoulderPressExerciseProfile = ExerciseProfile(
+  id: ExerciseId.shoulderPress,
+  displayName: 'Shoulder Press',
+  recommendedView: CameraView.front,
+  requiredLandmarks: const {
+    BodyJoint.leftShoulder,
+    BodyJoint.rightShoulder,
+    BodyJoint.leftElbow,
+    BodyJoint.rightElbow,
+    BodyJoint.leftWrist,
+    BodyJoint.rightWrist,
+    BodyJoint.leftHip,
+    BodyJoint.rightHip,
+  },
+  phaseMetrics: const {
+    MovementMetric.leftArmElevation,
+    MovementMetric.rightArmElevation,
+    MovementMetric.leftElbowAngle,
+    MovementMetric.rightElbowAngle,
+    MovementMetric.torsoLean,
+  },
+  thresholds: const {
+    MovementMetric.leftArmElevation: MetricThreshold(
+      minimum: 145,
+      maximum: 180,
+    ),
+    MovementMetric.rightArmElevation: MetricThreshold(
+      minimum: 145,
+      maximum: 180,
+    ),
+  },
+  setupInstruction:
+      'Face the camera with shoulders, elbows, wrists, and hips visible. Start with both hands near shoulder height.',
 );

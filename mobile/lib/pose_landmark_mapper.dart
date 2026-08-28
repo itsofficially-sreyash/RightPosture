@@ -60,18 +60,42 @@ class BicepCurlFrameSample {
   final double torsoConfidence;
 }
 
+class LateralRaiseFrameSample {
+  const LateralRaiseFrameSample({
+    required this.leftArmElevation,
+    required this.rightArmElevation,
+    required this.leftElbowAngle,
+    required this.rightElbowAngle,
+    required this.torsoLean,
+    required this.leftConfidence,
+    required this.rightConfidence,
+    required this.torsoConfidence,
+  });
+
+  final double leftArmElevation;
+  final double rightArmElevation;
+  final double leftElbowAngle;
+  final double rightElbowAngle;
+  final double torsoLean;
+  final double leftConfidence;
+  final double rightConfidence;
+  final double torsoConfidence;
+}
+
 class PoseMappingResult {
   PoseMappingResult({
     required List<MappedPose> poses,
     this.squatSample,
     this.squatCandidate,
     this.bicepCurlSample,
+    this.lateralRaiseSample,
   }) : poses = List.unmodifiable(poses);
 
   final List<MappedPose> poses;
   final SquatFrameSample? squatSample;
   final SquatFrameSample? squatCandidate;
   final BicepCurlFrameSample? bicepCurlSample;
+  final LateralRaiseFrameSample? lateralRaiseSample;
 }
 
 PlacementResult evaluateBicepCurlPlacement(
@@ -175,6 +199,7 @@ PoseMappingResult mapPoses(List<Pose> poses, {double minimumConfidence = 0.6}) {
   final mapped = poses.map(_mapOverlayLandmarks).toList(growable: false);
   final candidate = _bestSquatSample(poses.first);
   final curl = _bicepCurlSample(poses.first, minimumConfidence);
+  final lateralRaise = _lateralRaiseSample(poses.first, minimumConfidence);
   return PoseMappingResult(
     poses: mapped,
     squatSample: candidate != null && candidate.confidence >= minimumConfidence
@@ -182,6 +207,97 @@ PoseMappingResult mapPoses(List<Pose> poses, {double minimumConfidence = 0.6}) {
         : null,
     squatCandidate: candidate,
     bicepCurlSample: curl,
+    lateralRaiseSample: lateralRaise,
+  );
+}
+
+LateralRaiseFrameSample? _lateralRaiseSample(
+  Pose pose,
+  double minimumConfidence,
+) {
+  final leftShoulder = pose.landmarks[PoseLandmarkType.leftShoulder];
+  final rightShoulder = pose.landmarks[PoseLandmarkType.rightShoulder];
+  final leftElbow = pose.landmarks[PoseLandmarkType.leftElbow];
+  final rightElbow = pose.landmarks[PoseLandmarkType.rightElbow];
+  final leftWrist = pose.landmarks[PoseLandmarkType.leftWrist];
+  final rightWrist = pose.landmarks[PoseLandmarkType.rightWrist];
+  final leftHip = pose.landmarks[PoseLandmarkType.leftHip];
+  final rightHip = pose.landmarks[PoseLandmarkType.rightHip];
+  if ([
+    leftShoulder,
+    rightShoulder,
+    leftElbow,
+    rightElbow,
+    leftWrist,
+    rightWrist,
+    leftHip,
+    rightHip,
+  ].any((landmark) => landmark == null)) {
+    return null;
+  }
+  final leftConfidence = [
+    leftShoulder!.likelihood,
+    leftElbow!.likelihood,
+    leftWrist!.likelihood,
+    leftHip!.likelihood,
+  ].reduce((a, b) => a < b ? a : b);
+  final rightConfidence = [
+    rightShoulder!.likelihood,
+    rightElbow!.likelihood,
+    rightWrist!.likelihood,
+    rightHip!.likelihood,
+  ].reduce((a, b) => a < b ? a : b);
+  if (leftConfidence < minimumConfidence ||
+      rightConfidence < minimumConfidence) {
+    return null;
+  }
+  final leftElevation = jointAngle(
+    Point2(leftHip.x, leftHip.y),
+    Point2(leftShoulder.x, leftShoulder.y),
+    Point2(leftWrist.x, leftWrist.y),
+  );
+  final rightElevation = jointAngle(
+    Point2(rightHip.x, rightHip.y),
+    Point2(rightShoulder.x, rightShoulder.y),
+    Point2(rightWrist.x, rightWrist.y),
+  );
+  final leftElbowAngle = jointAngle(
+    Point2(leftShoulder.x, leftShoulder.y),
+    Point2(leftElbow.x, leftElbow.y),
+    Point2(leftWrist.x, leftWrist.y),
+  );
+  final rightElbowAngle = jointAngle(
+    Point2(rightShoulder.x, rightShoulder.y),
+    Point2(rightElbow.x, rightElbow.y),
+    Point2(rightWrist.x, rightWrist.y),
+  );
+  if (leftElevation == null ||
+      rightElevation == null ||
+      leftElbowAngle == null ||
+      rightElbowAngle == null) {
+    return null;
+  }
+  final shoulderX = (leftShoulder.x + rightShoulder.x) / 2;
+  final shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+  final hipX = (leftHip.x + rightHip.x) / 2;
+  final hipY = (leftHip.y + rightHip.y) / 2;
+  final torsoLean =
+      math.atan2(hipX - shoulderX, hipY - shoulderY) * 180 / math.pi;
+  final torsoConfidence = [
+    leftShoulder.likelihood,
+    rightShoulder.likelihood,
+    leftHip.likelihood,
+    rightHip.likelihood,
+  ].reduce((a, b) => a < b ? a : b);
+  return LateralRaiseFrameSample(
+    leftArmElevation: leftElevation,
+    rightArmElevation: rightElevation,
+    leftElbowAngle: leftElbowAngle,
+    rightElbowAngle: rightElbowAngle,
+    torsoLean: torsoLean,
+    leftConfidence: leftConfidence,
+    rightConfidence: rightConfidence,
+    torsoConfidence: torsoConfidence,
   );
 }
 

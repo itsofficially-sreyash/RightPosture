@@ -51,6 +51,26 @@ void main() {
     );
   });
 
+  test('all implemented exercises share automatic countdown', () {
+    const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
+    for (final exercise in [
+      ExerciseId.squat,
+      ExerciseId.bicepCurl,
+      ExerciseId.lateralRaise,
+      ExerciseId.shoulderPress,
+    ]) {
+      controller.prepareSession(exercise: exercise);
+      for (var i = 0; i < 3; i++) {
+        controller.acceptPreparationResult(ready);
+      }
+      final state = container.read(sessionControllerProvider);
+      expect(state.selectedExercise, exercise);
+      expect(state.phase, SessionPhase.countdown);
+      expect(state.countdownValue, 3);
+      controller.reset();
+    }
+  });
+
   test('pose loss cancels countdown and returns to preparation', () {
     controller.prepareSession();
     const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
@@ -132,7 +152,7 @@ void main() {
     final state = container.read(sessionControllerProvider);
     expect(state.phase, SessionPhase.complete);
     expect(state.summary!.totalReps, 4);
-    expect(state.summary!.formScorePercent, 100);
+    expect(state.summary!.formScorePercent, isNull);
   });
 
   test('duplicate standing frames cannot record duplicate reps', () {
@@ -319,6 +339,90 @@ void main() {
     controller.endSession();
     expect(container.read(sessionControllerProvider).summary!.totalReps, 4);
   });
+
+  test('lateral raise uses shared calibration and rep flow', () {
+    controller.prepareSession(exercise: ExerciseId.lateralRaise);
+    controller.startTracking();
+    for (var rep = 0; rep < 4; rep++) {
+      repeatLateralRaise(controller, 10, 10);
+      repeatLateralRaise(controller, 90, 90);
+      repeatLateralRaise(controller, 10, 10);
+    }
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.selectedExercise, ExerciseId.lateralRaise);
+    expect(state.reps, hasLength(4));
+    expect(
+      state.reps.take(3).map((rep) => rep.status),
+      everyElement(RepStatus.calibrating),
+    );
+    expect(state.reps.last.status, RepStatus.good);
+  });
+
+  test('shoulder press uses shared calibration and range feedback', () {
+    controller.prepareSession(exercise: ExerciseId.shoulderPress);
+    controller.startTracking();
+    for (var rep = 0; rep < 3; rep++) {
+      repeatShoulderPress(controller, 95, 95, 90);
+      repeatShoulderPress(controller, 165, 165, 170);
+      repeatShoulderPress(controller, 95, 95, 90);
+    }
+    repeatShoulderPress(controller, 95, 95, 90);
+    repeatShoulderPress(controller, 135, 135, 140);
+    repeatShoulderPress(controller, 95, 95, 90);
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.reps, hasLength(4));
+    expect(
+      state.reps.take(3).map((rep) => rep.status),
+      everyElement(RepStatus.calibrating),
+    );
+    expect(state.reps.last.status, RepStatus.degraded);
+    expect(feedbackForRep(state.reps.last), 'Press both hands fully overhead');
+  });
+}
+
+void repeatShoulderPress(
+  SessionController controller,
+  double left,
+  double right,
+  double elbow,
+) {
+  for (var i = 0; i < 3; i++) {
+    controller.acceptShoulderPressSample(
+      LateralRaiseFrameSample(
+        leftArmElevation: left,
+        rightArmElevation: right,
+        leftElbowAngle: elbow,
+        rightElbowAngle: elbow,
+        torsoLean: 0,
+        leftConfidence: 0.9,
+        rightConfidence: 0.9,
+        torsoConfidence: 0.9,
+      ),
+    );
+  }
+}
+
+void repeatLateralRaise(
+  SessionController controller,
+  double left,
+  double right,
+) {
+  for (var i = 0; i < 3; i++) {
+    controller.acceptLateralRaiseSample(
+      LateralRaiseFrameSample(
+        leftArmElevation: left,
+        rightArmElevation: right,
+        leftElbowAngle: 165,
+        rightElbowAngle: 165,
+        torsoLean: 0,
+        leftConfidence: 0.9,
+        rightConfidence: 0.9,
+        torsoConfidence: 0.9,
+      ),
+    );
+  }
 }
 
 void repeatCurl(SessionController controller, double left, double right) {

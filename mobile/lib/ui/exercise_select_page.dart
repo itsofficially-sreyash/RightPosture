@@ -135,6 +135,54 @@ class ExerciseSelectPage extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.medium),
+                  Semantics(
+                    button: true,
+                    label: 'Start lateral raise test session',
+                    child: Card(
+                      child: ListTile(
+                        key: const Key('select_lateral_raise'),
+                        contentPadding: const EdgeInsets.all(AppSpacing.medium),
+                        leading: const Icon(
+                          Icons.accessibility_new,
+                          color: AppColors.lime,
+                        ),
+                        title: const Text('Lateral Raise'),
+                        subtitle: const Text('Device tuning preview'),
+                        trailing: const Icon(
+                          Icons.arrow_forward,
+                          color: AppColors.lime,
+                        ),
+                        onTap: () => ref
+                            .read(sessionControllerProvider.notifier)
+                            .prepareSession(exercise: ExerciseId.lateralRaise),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.medium),
+                  Semantics(
+                    button: true,
+                    label: 'Start shoulder press test session',
+                    child: Card(
+                      child: ListTile(
+                        key: const Key('select_shoulder_press'),
+                        contentPadding: const EdgeInsets.all(AppSpacing.medium),
+                        leading: const Icon(
+                          Icons.fitness_center,
+                          color: AppColors.lime,
+                        ),
+                        title: const Text('Shoulder Press'),
+                        subtitle: const Text('Device tuning preview'),
+                        trailing: const Icon(
+                          Icons.arrow_forward,
+                          color: AppColors.lime,
+                        ),
+                        onTap: () => ref
+                            .read(sessionControllerProvider.notifier)
+                            .prepareSession(exercise: ExerciseId.shoulderPress),
+                      ),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: AppSpacing.extraLarge),
               ],

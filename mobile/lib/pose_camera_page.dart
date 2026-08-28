@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'domain/models.dart';
 import 'domain/exercise.dart';
 import 'domain/feedback_catalog.dart';
+import 'domain/exercise_registry.dart';
 import 'coaching_cues.dart';
 import 'pose_painter.dart';
 import 'pose_landmark_mapper.dart';
@@ -74,29 +75,37 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
           sessionState.phase == SessionPhase.countdown) {
         final imageSize = snapshot.imageSize;
         final pose = snapshot.poses.isEmpty ? null : snapshot.poses.first;
-        session.acceptPreparationResult(
-          sessionState.selectedExercise == ExerciseId.bicepCurl
-              ? evaluateBicepCurlPlacement(
-                  pose,
-                  imageWidth: imageSize?.width ?? 0,
-                  imageHeight: imageSize?.height ?? 0,
-                )
-              : evaluateSquatPlacement(
-                  pose,
-                  imageWidth: imageSize?.width ?? 0,
-                  imageHeight: imageSize?.height ?? 0,
-                ),
-        );
+        session.acceptPreparationResult(switch (sessionState.selectedExercise) {
+          ExerciseId.bicepCurl ||
+          ExerciseId.lateralRaise ||
+          ExerciseId.shoulderPress => evaluateBicepCurlPlacement(
+            pose,
+            imageWidth: imageSize?.width ?? 0,
+            imageHeight: imageSize?.height ?? 0,
+          ),
+          _ => evaluateSquatPlacement(
+            pose,
+            imageWidth: imageSize?.width ?? 0,
+            imageHeight: imageSize?.height ?? 0,
+          ),
+        });
       }
       if (snapshot.status == PosePipelineStatus.failed) {
         session.reportFailure(snapshot.error ?? 'Pose pipeline failed');
       } else if (sessionState.phase == SessionPhase.tracking) {
-        if (sessionState.selectedExercise == ExerciseId.bicepCurl) {
-          final sample = snapshot.bicepCurlSample;
-          if (sample != null) session.acceptBicepCurlSample(sample);
-        } else {
-          final sample = snapshot.squatSample;
-          if (sample != null) session.acceptPoseSample(sample);
+        switch (sessionState.selectedExercise) {
+          case ExerciseId.bicepCurl:
+            final sample = snapshot.bicepCurlSample;
+            if (sample != null) session.acceptBicepCurlSample(sample);
+          case ExerciseId.lateralRaise:
+            final sample = snapshot.lateralRaiseSample;
+            if (sample != null) session.acceptLateralRaiseSample(sample);
+          case ExerciseId.shoulderPress:
+            final sample = snapshot.lateralRaiseSample;
+            if (sample != null) session.acceptShoulderPressSample(sample);
+          default:
+            final sample = snapshot.squatSample;
+            if (sample != null) session.acceptPoseSample(sample);
         }
       }
     }
@@ -143,6 +152,9 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionControllerProvider);
+    final profile = const ExerciseRegistry().profileFor(
+      session.selectedExercise,
+    );
     ref.listen(sessionControllerProvider, (_, next) {
       _cues.handle(
         preferences: ref.read(settingsControllerProvider),
@@ -179,14 +191,8 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
                   alignment: Alignment.bottomCenter,
                   child: PreparationHud(
                     state: session,
-                    exerciseName:
-                        session.selectedExercise == ExerciseId.bicepCurl
-                        ? bicepCurlExerciseProfile.displayName
-                        : squatExerciseProfile.displayName,
-                    instruction:
-                        session.selectedExercise == ExerciseId.bicepCurl
-                        ? bicepCurlExerciseProfile.setupInstruction
-                        : squatExerciseProfile.setupInstruction,
+                    exerciseName: profile.displayName,
+                    instruction: profile.setupInstruction,
                     onStart: ref
                         .read(sessionControllerProvider.notifier)
                         .startCountdown,

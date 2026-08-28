@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:right_posture/domain/bicep_curl_rep_detector.dart';
 import 'package:right_posture/domain/exercise.dart';
 import 'package:right_posture/domain/exercise_registry.dart';
+import 'package:right_posture/domain/lateral_raise_rep_detector.dart';
 import 'package:right_posture/domain/squat_rep_detector.dart';
+import 'package:right_posture/domain/shoulder_press_rep_detector.dart';
 
 void main() {
   test('registry exposes squat profile and detector', () {
@@ -85,7 +87,7 @@ void main() {
     const registry = ExerciseRegistry();
 
     expect(
-      () => registry.detectorFor(ExerciseId.shoulderPress),
+      () => registry.detectorFor(ExerciseId.reverseLunge),
       throwsUnsupportedError,
     );
   });
@@ -100,6 +102,32 @@ void main() {
     expect(
       registry.detectorFor(ExerciseId.bicepCurl),
       isA<BicepCurlRepDetector>(),
+    );
+  });
+
+  test('registry exposes hidden lateral raise domain slice', () {
+    const registry = ExerciseRegistry();
+
+    expect(
+      registry.profileFor(ExerciseId.lateralRaise),
+      same(lateralRaiseExerciseProfile),
+    );
+    expect(
+      registry.detectorFor(ExerciseId.lateralRaise),
+      isA<LateralRaiseRepDetector>(),
+    );
+  });
+
+  test('registry exposes hidden shoulder press domain slice', () {
+    const registry = ExerciseRegistry();
+
+    expect(
+      registry.profileFor(ExerciseId.shoulderPress),
+      same(shoulderPressExerciseProfile),
+    );
+    expect(
+      registry.detectorFor(ExerciseId.shoulderPress),
+      isA<ShoulderPressRepDetector>(),
     );
   });
 }

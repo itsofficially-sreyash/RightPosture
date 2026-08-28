@@ -47,6 +47,32 @@ String feedbackForIssue(RepIssue issue) {
       _ => 'Keep your curl range consistent',
     };
   }
+  if (issue.exercise == ExerciseId.lateralRaise &&
+      (issue.metric == MovementMetric.leftArmElevation ||
+          issue.metric == MovementMetric.rightArmElevation)) {
+    return switch (issue.direction) {
+      IssueDirection.aboveRange ||
+      IssueDirection.decreased => 'Raise both arms a little higher',
+      IssueDirection.asymmetric => 'Lift both arms evenly',
+      _ => 'Keep your raise height consistent',
+    };
+  }
+  if (issue.exercise == ExerciseId.shoulderPress &&
+      (issue.metric == MovementMetric.leftArmElevation ||
+          issue.metric == MovementMetric.rightArmElevation ||
+          issue.metric == MovementMetric.leftElbowAngle ||
+          issue.metric == MovementMetric.rightElbowAngle)) {
+    return issue.direction == IssueDirection.asymmetric
+        ? 'Press both arms evenly'
+        : 'Press both hands fully overhead';
+  }
+  if (issue.exercise == ExerciseId.lateralRaise &&
+      (issue.metric == MovementMetric.leftElbowAngle ||
+          issue.metric == MovementMetric.rightElbowAngle)) {
+    return issue.direction == IssueDirection.asymmetric
+        ? 'Keep both elbows even'
+        : 'Keep your elbow bend consistent';
+  }
   return 'Your movement changed from your baseline';
 }
 
@@ -60,6 +86,8 @@ String metricLabel(MovementMetric metric) => switch (metric) {
   MovementMetric.torsoLean => 'Torso position',
   MovementMetric.torsoVerticalPosition => 'Torso movement',
   MovementMetric.armElevation => 'Arm elevation',
+  MovementMetric.leftArmElevation ||
+  MovementMetric.rightArmElevation => 'Arm elevation',
   MovementMetric.stanceWidth => 'Stance width',
   MovementMetric.wristHeightSymmetry => 'Arm symmetry',
   MovementMetric.ankleHeightSymmetry => 'Leg symmetry',

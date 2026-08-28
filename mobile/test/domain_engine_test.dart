@@ -221,7 +221,7 @@ void main() {
     ];
     final summary = summarizeSession(reps);
     expect(summary.totalReps, 6);
-    expect(summary.formScorePercent, closeTo(100 / 3, 1e-9));
+    expect(summary.formScorePercent, 50);
     expect(summary.degradationStartRep, 6);
     expect(summary.primaryResponsibleJoint, 'Knee range');
   });
@@ -234,6 +234,45 @@ void main() {
       ]).formScorePercent,
       isNull,
     );
+  });
+
+  test('detailed summary excludes calibration and missing metrics', () {
+    Rep measured(
+      int number,
+      RepStatus status,
+      int milliseconds,
+      double range,
+    ) => Rep(
+      number: number,
+      angles: {'left': range},
+      status: status,
+      metrics: RepMetrics(
+        totalDuration: Duration(milliseconds: milliseconds),
+        outwardDuration: Duration(milliseconds: milliseconds ~/ 2),
+        returnDuration: Duration(milliseconds: milliseconds ~/ 2),
+        rangeOfMotion: {MovementMetric.leftArmElevation: range},
+        bilateralTimingDifference: const Duration(milliseconds: 100),
+        completionConfidence: 0.9,
+      ),
+    );
+
+    final summary = summarizeSession([
+      measured(1, RepStatus.calibrating, 9000, 10),
+      measured(2, RepStatus.good, 2000, 80),
+      measured(3, RepStatus.warning, 2200, 76),
+      Rep(number: 4, angles: const {}, status: RepStatus.degraded),
+    ], exercise: ExerciseId.lateralRaise);
+
+    expect(summary.formScorePercent, 50);
+    expect(summary.goodRepCount, 1);
+    expect(summary.warningRepCount, 1);
+    expect(summary.degradedRepCount, 1);
+    expect(summary.calibrationRepCount, 1);
+    expect(summary.averageTempoSeconds, 2.1);
+    expect(summary.bestRepNumber, 2);
+    expect(summary.lowestRepNumber, 4);
+    expect(summary.componentScores.last.label, 'Elevation consistency');
+    expect(summary.componentScores.first.evaluatedRepCount, 2);
   });
 }
 

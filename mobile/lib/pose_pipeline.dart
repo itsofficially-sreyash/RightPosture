@@ -22,6 +22,7 @@ class PosePipelineSnapshot {
     this.squatSample,
     this.squatCandidate,
     this.bicepCurlSample,
+    this.lateralRaiseSample,
     this.imageSize,
     this.rotationDegrees = 0,
     this.mirrored = false,
@@ -36,6 +37,7 @@ class PosePipelineSnapshot {
   final SquatFrameSample? squatSample;
   final SquatFrameSample? squatCandidate;
   final BicepCurlFrameSample? bicepCurlSample;
+  final LateralRaiseFrameSample? lateralRaiseSample;
   final Size? imageSize;
   final int rotationDegrees;
   final bool mirrored;
@@ -163,6 +165,8 @@ class PosePipeline extends ChangeNotifier {
       _consecutiveFrameFailures = 0;
       final exerciseSampleReady = switch (exercise) {
         ExerciseId.bicepCurl => mapped.bicepCurlSample != null,
+        ExerciseId.lateralRaise => mapped.lateralRaiseSample != null,
+        ExerciseId.shoulderPress => mapped.lateralRaiseSample != null,
         _ => mapped.squatSample != null,
       };
       final status = poses.isEmpty
@@ -177,6 +181,7 @@ class PosePipeline extends ChangeNotifier {
           squatSample: mapped.squatSample,
           squatCandidate: mapped.squatCandidate,
           bicepCurlSample: mapped.bicepCurlSample,
+          lateralRaiseSample: mapped.lateralRaiseSample,
           imageSize: input.metadata?.size,
           rotationDegrees: _rotationDegrees(input.metadata?.rotation),
           mirrored: camera.lensDirection == CameraLensDirection.front,

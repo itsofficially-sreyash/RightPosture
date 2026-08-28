@@ -76,13 +76,52 @@ class SessionSummary {
     required this.degradationStartRep,
     required this.primaryResponsibleJoint,
     required List<Rep> repChecklist,
-  }) : repChecklist = List.unmodifiable(repChecklist);
+    List<ComponentScore> componentScores = const [],
+    this.averageTempoSeconds,
+    this.averageReturnSeconds,
+    this.averageConfidencePercent,
+    this.averageSymmetrySeconds,
+    this.consistencyScorePercent,
+    this.bestRepNumber,
+    this.lowestRepNumber,
+    this.goodRepCount = 0,
+    this.warningRepCount = 0,
+    this.degradedRepCount = 0,
+    this.calibrationRepCount = 0,
+  }) : repChecklist = List.unmodifiable(repChecklist),
+       componentScores = List.unmodifiable(componentScores);
 
   final int totalReps;
   final double? formScorePercent;
   final int? degradationStartRep;
   final String? primaryResponsibleJoint;
   final List<Rep> repChecklist;
+  final List<ComponentScore> componentScores;
+  final double? averageTempoSeconds;
+  final double? averageReturnSeconds;
+  final double? averageConfidencePercent;
+  final double? averageSymmetrySeconds;
+  final double? consistencyScorePercent;
+  final int? bestRepNumber;
+  final int? lowestRepNumber;
+  final int goodRepCount;
+  final int warningRepCount;
+  final int degradedRepCount;
+  final int calibrationRepCount;
 
   bool get hasEnoughData => formScorePercent != null;
+}
+
+class ComponentScore {
+  const ComponentScore({
+    required this.id,
+    required this.label,
+    required this.percent,
+    required this.evaluatedRepCount,
+  });
+
+  final String id;
+  final String label;
+  final double? percent;
+  final int evaluatedRepCount;
 }

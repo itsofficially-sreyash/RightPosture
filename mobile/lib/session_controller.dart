@@ -56,6 +56,8 @@ class SessionController extends Notifier<SessionState> {
   late AngleSmoother _kneeAngleSmoother;
   late AngleSmoother _leftElbowSmoother;
   late AngleSmoother _rightElbowSmoother;
+  late AngleSmoother _leftArmElevationSmoother;
+  late AngleSmoother _rightArmElevationSmoother;
   final ExerciseRegistry _registry = const ExerciseRegistry();
   String? _trackedSide;
   Timer? _countdownTimer;
@@ -262,6 +264,73 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
+  void acceptLateralRaiseSample(LateralRaiseFrameSample sample) {
+    _acceptBilateralArmSample(sample, ExerciseId.lateralRaise);
+  }
+
+  void acceptShoulderPressSample(LateralRaiseFrameSample sample) {
+    _acceptBilateralArmSample(sample, ExerciseId.shoulderPress);
+  }
+
+  void _acceptBilateralArmSample(
+    LateralRaiseFrameSample sample,
+    ExerciseId exercise,
+  ) {
+    if (state.phase != SessionPhase.tracking ||
+        state.selectedExercise != exercise ||
+        state.error != null) {
+      return;
+    }
+    final left = _leftArmElevationSmoother.add(sample.leftArmElevation);
+    final right = _rightArmElevationSmoother.add(sample.rightArmElevation);
+    if (left == null || right == null) return;
+    final completion = _repDetector.addFrame(
+      MovementFrame(
+        timestamp: DateTime.now(),
+        values: {
+          MovementMetric.leftArmElevation: left,
+          MovementMetric.rightArmElevation: right,
+          MovementMetric.leftElbowAngle: sample.leftElbowAngle,
+          MovementMetric.rightElbowAngle: sample.rightElbowAngle,
+          MovementMetric.torsoLean: sample.torsoLean,
+        },
+        confidence: {
+          MovementMetric.leftArmElevation: sample.leftConfidence,
+          MovementMetric.rightArmElevation: sample.rightConfidence,
+          MovementMetric.leftElbowAngle: sample.leftConfidence,
+          MovementMetric.rightElbowAngle: sample.rightConfidence,
+          MovementMetric.torsoLean: sample.torsoConfidence,
+        },
+        trackedSide: TrackedSide.bilateral,
+      ),
+    );
+    if (completion == null) return;
+    final rep = _evaluator.evaluate(
+      {
+        'left': completion.maximumValues[MovementMetric.leftArmElevation]!,
+        'right': completion.maximumValues[MovementMetric.rightArmElevation]!,
+        'leftElbow': exercise == ExerciseId.shoulderPress
+            ? completion.maximumValues[MovementMetric.leftElbowAngle]!
+            : completion.minimumValues[MovementMetric.leftElbowAngle]!,
+        'rightElbow': exercise == ExerciseId.shoulderPress
+            ? completion.maximumValues[MovementMetric.rightElbowAngle]!
+            : completion.minimumValues[MovementMetric.rightElbowAngle]!,
+      },
+      confidenceOk: true,
+      metrics: completion.metrics,
+    );
+    if (rep == null) return;
+    _leftArmElevationSmoother.reset();
+    _rightArmElevationSmoother.reset();
+    state = SessionState(
+      phase: SessionPhase.tracking,
+      selectedExercise: state.selectedExercise,
+      reps: [...state.reps, rep],
+      baseline: _evaluator.baseline,
+      latestFeedback: rep,
+    );
+  }
+
   void endSession() {
     if (state.phase != SessionPhase.tracking) return;
     state = SessionState(
@@ -270,7 +339,7 @@ class SessionController extends Notifier<SessionState> {
       reps: state.reps,
       baseline: state.baseline,
       coaching: state.coaching,
-      summary: summarizeSession(state.reps),
+      summary: summarizeSession(state.reps, exercise: state.selectedExercise),
     );
   }
 
@@ -328,19 +397,42 @@ class SessionController extends Notifier<SessionState> {
 
   void _resetEngines(ExerciseId exercise) {
     _repDetector = _registry.detectorFor(exercise);
-    _evaluator = exercise == ExerciseId.bicepCurl
-        ? RepEvaluator(
-            bicepCurlExerciseThresholds(),
-            exercise: ExerciseId.bicepCurl,
-            metrics: const {
-              'left': MovementMetric.leftElbowAngle,
-              'right': MovementMetric.rightElbowAngle,
-            },
-          )
-        : RepEvaluator(squatExerciseThresholds());
+    _evaluator = switch (exercise) {
+      ExerciseId.bicepCurl => RepEvaluator(
+        bicepCurlExerciseThresholds(),
+        exercise: ExerciseId.bicepCurl,
+        metrics: const {
+          'left': MovementMetric.leftElbowAngle,
+          'right': MovementMetric.rightElbowAngle,
+        },
+      ),
+      ExerciseId.lateralRaise => RepEvaluator(
+        lateralRaiseExerciseThresholds(),
+        exercise: ExerciseId.lateralRaise,
+        metrics: const {
+          'left': MovementMetric.leftArmElevation,
+          'right': MovementMetric.rightArmElevation,
+          'leftElbow': MovementMetric.leftElbowAngle,
+          'rightElbow': MovementMetric.rightElbowAngle,
+        },
+      ),
+      ExerciseId.shoulderPress => RepEvaluator(
+        shoulderPressExerciseThresholds(),
+        exercise: ExerciseId.shoulderPress,
+        metrics: const {
+          'left': MovementMetric.leftArmElevation,
+          'right': MovementMetric.rightArmElevation,
+          'leftElbow': MovementMetric.leftElbowAngle,
+          'rightElbow': MovementMetric.rightElbowAngle,
+        },
+      ),
+      _ => RepEvaluator(squatExerciseThresholds()),
+    };
     _kneeAngleSmoother = AngleSmoother();
     _leftElbowSmoother = AngleSmoother();
     _rightElbowSmoother = AngleSmoother();
+    _leftArmElevationSmoother = AngleSmoother();
+    _rightArmElevationSmoother = AngleSmoother();
     _trackedSide = null;
   }
 
@@ -349,6 +441,8 @@ class SessionController extends Notifier<SessionState> {
     _kneeAngleSmoother.reset();
     _leftElbowSmoother.reset();
     _rightElbowSmoother.reset();
+    _leftArmElevationSmoother.reset();
+    _rightArmElevationSmoother.reset();
     _trackedSide = null;
   }
 
@@ -369,6 +463,42 @@ ExerciseThresholds bicepCurlExerciseThresholds() => ExerciseThresholds(
   joints: const {
     'left': JointThreshold(minimum: 0, maximum: 130, deviationThreshold: 20),
     'right': JointThreshold(minimum: 0, maximum: 130, deviationThreshold: 20),
+  },
+  persistenceCount: 3,
+);
+
+ExerciseThresholds lateralRaiseExerciseThresholds() => ExerciseThresholds(
+  joints: const {
+    'left': JointThreshold(minimum: 70, maximum: 110, deviationThreshold: 15),
+    'right': JointThreshold(minimum: 70, maximum: 110, deviationThreshold: 15),
+    'leftElbow': JointThreshold(
+      minimum: 0,
+      maximum: 180,
+      deviationThreshold: 20,
+    ),
+    'rightElbow': JointThreshold(
+      minimum: 0,
+      maximum: 180,
+      deviationThreshold: 20,
+    ),
+  },
+  persistenceCount: 3,
+);
+
+ExerciseThresholds shoulderPressExerciseThresholds() => ExerciseThresholds(
+  joints: const {
+    'left': JointThreshold(minimum: 145, maximum: 180, deviationThreshold: 15),
+    'right': JointThreshold(minimum: 145, maximum: 180, deviationThreshold: 15),
+    'leftElbow': JointThreshold(
+      minimum: 145,
+      maximum: 180,
+      deviationThreshold: 15,
+    ),
+    'rightElbow': JointThreshold(
+      minimum: 145,
+      maximum: 180,
+      deviationThreshold: 15,
+    ),
   },
   persistenceCount: 3,
 );

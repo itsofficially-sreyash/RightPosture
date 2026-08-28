@@ -74,6 +74,13 @@ class PosePipelineStatusPanel extends StatelessWidget {
       diagnostics =
           '\nElbows: ${sample.leftElbowAngle.toStringAsFixed(1)}\u00b0 / '
           '${sample.rightElbowAngle.toStringAsFixed(1)}\u00b0';
+    } else if ((exercise == ExerciseId.lateralRaise ||
+            exercise == ExerciseId.shoulderPress) &&
+        snapshot.lateralRaiseSample != null) {
+      final sample = snapshot.lateralRaiseSample!;
+      diagnostics =
+          '\nElevation: ${sample.leftArmElevation.toStringAsFixed(1)}\u00b0 / '
+          '${sample.rightArmElevation.toStringAsFixed(1)}\u00b0';
     } else if (snapshot.squatCandidate != null) {
       final candidate = snapshot.squatCandidate!;
       diagnostics =

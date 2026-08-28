@@ -59,6 +59,34 @@ void main() {
     expect(state.selectedExercise, ExerciseId.bicepCurl);
   });
 
+  testWidgets('debug lateral raise card starts correct preparation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const ExerciseSelectPage(),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('select_lateral_raise')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.drag(find.byType(ListView), const Offset(0, -100));
+    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(ExerciseSelectPage));
+    final container = ProviderScope.containerOf(context);
+    await tester.tap(find.byKey(const Key('select_lateral_raise')));
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.preparing);
+    expect(state.selectedExercise, ExerciseId.lateralRaise);
+  });
+
   testWidgets('squat preparation fits compact screen at 200% text scale', (
     tester,
   ) async {
@@ -117,6 +145,57 @@ void main() {
 
     expect(find.text('Set up your Bicep Curl'), findsOneWidget);
     expect(find.textContaining('squat', findRichText: true), findsNothing);
+  });
+
+  testWidgets('lateral raise preparation contains correct copy', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: PreparationHud(
+            state: SessionState(
+              phase: SessionPhase.preparing,
+              selectedExercise: ExerciseId.lateralRaise,
+            ),
+            exerciseName: 'Lateral Raise',
+            instruction: lateralRaiseExerciseProfile.setupInstruction,
+            onStart: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Set up your Lateral Raise'), findsOneWidget);
+    expect(find.textContaining('squat', findRichText: true), findsNothing);
+    expect(find.textContaining('curl', findRichText: true), findsNothing);
+  });
+
+  testWidgets('shoulder press preparation contains correct copy', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: PreparationHud(
+            state: SessionState(
+              phase: SessionPhase.preparing,
+              selectedExercise: ExerciseId.shoulderPress,
+            ),
+            exerciseName: 'Shoulder Press',
+            instruction: shoulderPressExerciseProfile.setupInstruction,
+            onStart: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Set up your Shoulder Press'), findsOneWidget);
+    expect(find.textContaining('squat', findRichText: true), findsNothing);
+    expect(find.textContaining('curl', findRichText: true), findsNothing);
+    expect(find.textContaining('lateral', findRichText: true), findsNothing);
   });
 
   testWidgets('live HUD shows calibration and ends the set', (tester) async {
@@ -287,6 +366,13 @@ void main() {
       find.textContaining('Form degradation detected from rep 4'),
       findsOneWidget,
     );
+    await tester.scrollUntilVisible(
+      find.text('Rep 4 · degraded'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -100));
+    await tester.pumpAndSettle();
     expect(find.text('Rep 4 · degraded'), findsOneWidget);
 
     await tester.pumpWidget(
@@ -309,6 +395,63 @@ void main() {
       ),
     );
     expect(find.text('Not enough data'), findsOneWidget);
+  });
+
+  testWidgets('rep timeline opens accessible movement details', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final rep = Rep(
+      number: 4,
+      angles: const {'left': 90},
+      status: RepStatus.warning,
+      metrics: RepMetrics(
+        totalDuration: const Duration(seconds: 2),
+        outwardDuration: const Duration(seconds: 1),
+        returnDuration: const Duration(seconds: 1),
+        rangeOfMotion: const {MovementMetric.leftArmElevation: 80},
+        completionConfidence: 0.9,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: SessionSummaryView(
+            state: SessionState(
+              phase: SessionPhase.complete,
+              selectedExercise: ExerciseId.lateralRaise,
+              reps: [rep],
+              summary: SessionSummary(
+                totalReps: 1,
+                formScorePercent: null,
+                degradationStartRep: null,
+                primaryResponsibleJoint: null,
+                repChecklist: [rep],
+                warningRepCount: 1,
+              ),
+            ),
+            onRestart: () {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('rep_timeline_4')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -100));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('rep_timeline_4')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tempo: 2.0 s'), findsOneWidget);
+    expect(find.text('Arm elevation: 80.0°'), findsOneWidget);
+    expect(find.text('Confidence: 90%'), findsOneWidget);
   });
 
   testWidgets('exercise selection fits 320px width at 200% text scale', (
@@ -334,10 +477,11 @@ void main() {
       ),
     );
 
+    expect(find.text('Choose your exercise'), findsOneWidget);
     await tester.fling(find.byType(ListView), const Offset(0, -1200), 2000);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    expect(find.byKey(const Key('select_squat')), findsOneWidget);
+    expect(find.byKey(const Key('select_lateral_raise')), findsOneWidget);
   });
 
   testWidgets('live HUD fits compact screen at 200% text scale', (
