@@ -117,7 +117,7 @@ void main() {
       detector.addKneeAngle(100, confidenceOk: true);
       expect(detector.coachingFor(100), SquatCoaching.depthGood);
       expect(detector.coachingFor(120), SquatCoaching.standUp);
-      expect(detector.coachingFor(60), SquatCoaching.tooDeep);
+      expect(detector.coachingFor(60), SquatCoaching.depthGood);
       detector.addKneeAngle(170, confidenceOk: true);
       expect(detector.coachingFor(170), SquatCoaching.ready);
     });

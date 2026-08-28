@@ -107,6 +107,7 @@ class SessionController extends Notifier<SessionState> {
       placementStable: stable,
       placementGuidance: result.message,
     );
+    if (stable) startCountdown();
   }
 
   void startCountdown() {
@@ -186,9 +187,11 @@ class SessionController extends Notifier<SessionState> {
       );
       return;
     }
-    final rep = _evaluator.evaluate({
-      'knee': completion.minimumValues[MovementMetric.kneeAngle]!,
-    }, confidenceOk: true);
+    final rep = _evaluator.evaluate(
+      {'knee': completion.minimumValues[MovementMetric.kneeAngle]!},
+      confidenceOk: true,
+      metrics: completion.metrics,
+    );
     if (rep == null) return;
     _trackedSide = null;
     _kneeAngleSmoother.reset();
@@ -286,7 +289,7 @@ class SessionController extends Notifier<SessionState> {
 
 ExerciseThresholds squatExerciseThresholds() => ExerciseThresholds(
   joints: const {
-    'knee': JointThreshold(minimum: 70, maximum: 140, deviationThreshold: 20),
+    'knee': JointThreshold(minimum: 0, maximum: 140, deviationThreshold: 20),
   },
   persistenceCount: 3,
 );

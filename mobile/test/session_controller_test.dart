@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:right_posture/domain/exercise.dart';
 import 'package:right_posture/domain/feedback_catalog.dart';
 import 'package:right_posture/domain/models.dart';
 import 'package:right_posture/domain/rep_evaluator.dart';
@@ -31,8 +32,10 @@ void main() {
     expect(container.read(sessionControllerProvider).reps, isEmpty);
 
     controller.acceptPreparationResult(ready);
-    expect(container.read(sessionControllerProvider).placementStable, isTrue);
-    controller.startCountdown();
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.countdown,
+    );
     expect(container.read(sessionControllerProvider).countdownValue, 3);
     completeRep(controller, 100);
     expect(container.read(sessionControllerProvider).reps, isEmpty);
@@ -54,7 +57,6 @@ void main() {
     for (var i = 0; i < 3; i++) {
       controller.acceptPreparationResult(ready);
     }
-    controller.startCountdown();
 
     controller.trackingInterrupted();
 
@@ -62,6 +64,25 @@ void main() {
     expect(state.phase, SessionPhase.preparing);
     expect(state.placementStable, isFalse);
     expect(state.countdownValue, isNull);
+  });
+
+  test('pose loss restarts automatic countdown from three', () {
+    controller.prepareSession();
+    const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
+    for (var i = 0; i < 3; i++) {
+      controller.acceptPreparationResult(ready);
+    }
+    controller.advanceCountdown();
+    expect(container.read(sessionControllerProvider).countdownValue, 2);
+
+    controller.trackingInterrupted();
+    for (var i = 0; i < 3; i++) {
+      controller.acceptPreparationResult(ready);
+    }
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.countdown);
+    expect(state.countdownValue, 3);
   });
 
   test('moves through calibration, tracking, and completion', () {
@@ -172,6 +193,7 @@ void main() {
     final rep = container.read(sessionControllerProvider).reps.last;
     expect(rep.number, 4);
     expect(rep.angles['knee'], 145);
+    expect(rep.metrics!.rangeOfMotion[MovementMetric.kneeAngle], 25);
     expect(rep.status, RepStatus.degraded);
     expect(feedbackForRep(rep), 'Next rep: go lower');
   });
@@ -236,6 +258,18 @@ void main() {
     expect(
       evaluator.evaluate({'knee': 123}, confidenceOk: true)!.status,
       RepStatus.degraded,
+    );
+  });
+
+  test('deep squat is not rejected by an unsupported minimum angle', () {
+    final evaluator = RepEvaluator(squatExerciseThresholds());
+    for (final angle in [60.0, 60.0, 60.0]) {
+      evaluator.evaluate({'knee': angle}, confidenceOk: true);
+    }
+
+    expect(
+      evaluator.evaluate({'knee': 60}, confidenceOk: true)!.status,
+      RepStatus.good,
     );
   });
 }

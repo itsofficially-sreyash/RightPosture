@@ -13,7 +13,11 @@ class RepEvaluator {
   Map<String, double>? get baseline =>
       _baseline == null ? null : Map<String, double>.unmodifiable(_baseline!);
 
-  Rep? evaluate(Map<String, double> angles, {required bool confidenceOk}) {
+  Rep? evaluate(
+    Map<String, double> angles, {
+    required bool confidenceOk,
+    RepMetrics? metrics,
+  }) {
     if (!confidenceOk || !_hasEveryTrackedJoint(angles)) return null;
     _repNumber++;
 
@@ -29,6 +33,7 @@ class RepEvaluator {
         number: _repNumber,
         angles: Map.unmodifiable(angles),
         status: RepStatus.calibrating,
+        metrics: metrics,
       );
     }
 
@@ -41,6 +46,7 @@ class RepEvaluator {
         number: _repNumber,
         angles: Map.unmodifiable(angles),
         status: RepStatus.degraded,
+        metrics: metrics,
         issues: [
           RepIssue(
             exercise: ExerciseId.squat,
@@ -95,6 +101,7 @@ class RepEvaluator {
         number: _repNumber,
         angles: Map.unmodifiable(angles),
         status: RepStatus.good,
+        metrics: metrics,
       );
     }
     final count = _deviationCounts[largestDeviationJoint]!;
@@ -106,6 +113,7 @@ class RepEvaluator {
       angles: Map.unmodifiable(angles),
       status: status,
       issues: issues,
+      metrics: metrics,
     );
   }
 

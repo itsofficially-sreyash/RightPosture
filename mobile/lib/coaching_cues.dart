@@ -15,9 +15,8 @@ String coachingText(SquatCoaching coaching) => switch (coaching) {
   SquatCoaching.standTall => 'Stand tall to start',
   SquatCoaching.ready => 'Ready — squat down',
   SquatCoaching.goLower => 'Go lower',
-  SquatCoaching.depthGood => 'Depth good — stand up',
+  SquatCoaching.depthGood => 'Stand up',
   SquatCoaching.standUp => 'Stand up',
-  SquatCoaching.tooDeep => 'Too deep — come up slightly',
 };
 
 enum CueHaptic { depth, warning, degraded }

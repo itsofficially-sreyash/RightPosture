@@ -14,13 +14,14 @@ void main() {
   test('squat detector consumes shared movement frames', () {
     final detector = const ExerciseRegistry().detectorFor(ExerciseId.squat);
     RepCompletion? completion;
-    for (final angle in [170.0, 145.0, 165.0]) {
+    final start = DateTime(2026);
+    for (final (index, angle) in [170.0, 145.0, 165.0].indexed) {
       completion =
           detector.addFrame(
             MovementFrame(
-              timestamp: DateTime(2026),
+              timestamp: start.add(Duration(seconds: index)),
               values: {MovementMetric.kneeAngle: angle},
-              confidence: const {MovementMetric.kneeAngle: 0.9},
+              confidence: {MovementMetric.kneeAngle: index == 1 ? 0.8 : 0.9},
               trackedSide: TrackedSide.left,
             ),
           ) ??
@@ -31,6 +32,52 @@ void main() {
     expect(completion!.minimumValues[MovementMetric.kneeAngle], 145);
     expect(completion.maximumValues[MovementMetric.kneeAngle], 170);
     expect(completion.trackedSide, TrackedSide.left);
+    expect(completion.metrics.totalDuration, const Duration(seconds: 2));
+    expect(completion.metrics.outwardDuration, const Duration(seconds: 1));
+    expect(completion.metrics.returnDuration, const Duration(seconds: 1));
+    expect(completion.metrics.rangeOfMotion[MovementMetric.kneeAngle], 25);
+    expect(completion.metrics.completionConfidence, 0.8);
+    expect(completion.metrics.bilateralTimingDifference, isNull);
+  });
+
+  test('low-confidence gap invalidates active rep timing', () {
+    final detector = const ExerciseRegistry().detectorFor(ExerciseId.squat);
+    final start = DateTime(2026);
+
+    RepCompletion? add(int seconds, double angle, double confidence) =>
+        detector.addFrame(
+          MovementFrame(
+            timestamp: start.add(Duration(seconds: seconds)),
+            values: {MovementMetric.kneeAngle: angle},
+            confidence: {MovementMetric.kneeAngle: confidence},
+            trackedSide: TrackedSide.left,
+          ),
+        );
+
+    expect(add(0, 170, 0.9), isNull);
+    expect(add(1, 140, 0.9), isNull);
+    expect(add(10, 140, 0.2), isNull);
+    expect(add(11, 165, 0.9), isNull);
+  });
+
+  test('out-of-order timestamps cannot produce negative durations', () {
+    final detector = const ExerciseRegistry().detectorFor(ExerciseId.squat);
+    final start = DateTime(2026);
+    RepCompletion? completion;
+    for (final (seconds, angle) in [(2, 170.0), (1, 140.0), (0, 165.0)]) {
+      completion = detector.addFrame(
+        MovementFrame(
+          timestamp: start.add(Duration(seconds: seconds)),
+          values: {MovementMetric.kneeAngle: angle},
+          confidence: const {MovementMetric.kneeAngle: 0.9},
+          trackedSide: TrackedSide.left,
+        ),
+      );
+    }
+
+    expect(completion!.metrics.totalDuration, Duration.zero);
+    expect(completion.metrics.outwardDuration, Duration.zero);
+    expect(completion.metrics.returnDuration, Duration.zero);
   });
 
   test('unfinished exercises remain unavailable', () {

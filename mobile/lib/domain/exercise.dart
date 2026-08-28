@@ -97,12 +97,38 @@ class RepCompletion {
     required Map<MovementMetric, double> minimumValues,
     required Map<MovementMetric, double> maximumValues,
     required this.trackedSide,
+    required this.metrics,
   }) : minimumValues = Map.unmodifiable(minimumValues),
        maximumValues = Map.unmodifiable(maximumValues);
 
   final Map<MovementMetric, double> minimumValues;
   final Map<MovementMetric, double> maximumValues;
   final TrackedSide trackedSide;
+  final RepMetrics metrics;
+}
+
+class RepMetrics {
+  RepMetrics({
+    required this.totalDuration,
+    required this.outwardDuration,
+    required this.returnDuration,
+    required Map<MovementMetric, double> rangeOfMotion,
+    required this.completionConfidence,
+    this.transitionDuration,
+    this.bilateralTimingDifference,
+  }) : assert(!totalDuration.isNegative),
+       assert(!outwardDuration.isNegative),
+       assert(!returnDuration.isNegative),
+       assert(completionConfidence >= 0 && completionConfidence <= 1),
+       rangeOfMotion = Map.unmodifiable(rangeOfMotion);
+
+  final Duration totalDuration;
+  final Duration outwardDuration;
+  final Duration returnDuration;
+  final Duration? transitionDuration;
+  final Map<MovementMetric, double> rangeOfMotion;
+  final Duration? bilateralTimingDifference;
+  final double completionConfidence;
 }
 
 abstract interface class RepDetector {
@@ -121,8 +147,8 @@ final squatExerciseProfile = ExerciseProfile(
   },
   phaseMetrics: const {MovementMetric.kneeAngle},
   thresholds: const {
-    MovementMetric.kneeAngle: MetricThreshold(minimum: 70, maximum: 140),
+    MovementMetric.kneeAngle: MetricThreshold(minimum: 0, maximum: 140),
   },
   setupInstruction:
-      'Step back until shoulders, hips, knees, and ankles are visible. Turn slightly sideways.',
+      'Step back until shoulders, hips, knees, and ankles are visible. Face sideways.',
 );

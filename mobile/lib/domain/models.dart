@@ -58,6 +58,7 @@ class Rep {
     required Map<String, double> angles,
     required this.status,
     List<RepIssue> issues = const [],
+    this.metrics,
   }) : angles = Map.unmodifiable(angles),
        issues = List.unmodifiable(issues);
 
@@ -65,6 +66,7 @@ class Rep {
   final Map<String, double> angles;
   final RepStatus status;
   final List<RepIssue> issues;
+  final RepMetrics? metrics;
 }
 
 class SessionSummary {
