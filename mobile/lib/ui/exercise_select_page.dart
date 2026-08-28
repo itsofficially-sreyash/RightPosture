@@ -3,9 +3,33 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/exercise.dart';
+import '../history_storage.dart';
 import '../session_controller.dart';
 import 'app_theme.dart';
 import 'settings_page.dart';
+import 'analytics_page.dart';
+import 'guided_demo_page.dart';
+
+Future<void> openExercise(
+  BuildContext context,
+  WidgetRef ref,
+  ExerciseId exercise, {
+  bool replayDemo = false,
+}) async {
+  final visits = await ref.read(historyStorageProvider).loadDemoVisits();
+  if (!context.mounted) return;
+  if (replayDemo || !visits.contains(exercise.name)) {
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => GuidedDemoPage(exercise: exercise),
+      ),
+    );
+    if (!context.mounted || completed != true) return;
+  }
+  ref
+      .read(sessionControllerProvider.notifier)
+      .prepareSession(exercise: exercise);
+}
 
 class ExerciseSelectPage extends ConsumerWidget {
   const ExerciseSelectPage({super.key});
@@ -20,18 +44,30 @@ class ExerciseSelectPage extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.large),
               children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: IconButton(
-                    key: const Key('open_settings'),
-                    tooltip: 'Coaching settings',
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SettingsPage(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      key: const Key('open_analytics'),
+                      tooltip: 'History and analytics',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AnalyticsPage(),
+                        ),
                       ),
+                      icon: const Icon(Icons.insights),
                     ),
-                    icon: const Icon(Icons.settings),
-                  ),
+                    IconButton(
+                      key: const Key('open_settings'),
+                      tooltip: 'Coaching settings',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SettingsPage(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.settings),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.extraLarge),
                 Text(
@@ -53,60 +89,31 @@ class ExerciseSelectPage extends ConsumerWidget {
                   button: true,
                   label: 'Start squat session',
                   child: Card(
-                    child: InkWell(
+                    child: ListTile(
                       key: const Key('select_squat'),
-                      borderRadius: BorderRadius.circular(AppRadius.large),
-                      onTap: () {
-                        ref
-                            .read(sessionControllerProvider.notifier)
-                            .prepareSession();
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.all(AppSpacing.large),
-                        child: Row(
-                          children: [
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceElevated,
-                                shape: BoxShape.circle,
-                              ),
-                              child: SizedBox(
-                                width: 64,
-                                height: 64,
-                                child: Icon(
-                                  Icons.accessibility_new,
-                                  color: AppColors.lime,
-                                  size: 34,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: AppSpacing.medium),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Squat',
-                                    style: TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    'Camera-guided form tracking',
-                                    style: TextStyle(
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.arrow_forward, color: AppColors.lime),
-                          ],
+                      contentPadding: const EdgeInsets.all(AppSpacing.large),
+                      leading: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated,
+                          shape: BoxShape.circle,
+                        ),
+                        child: SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: Icon(
+                            Icons.accessibility_new,
+                            color: AppColors.lime,
+                            size: 32,
+                          ),
                         ),
                       ),
+                      title: const Text('Squat'),
+                      subtitle: const Text('Camera-guided form tracking'),
+                      trailing: _ExerciseActions(
+                        exercise: ExerciseId.squat,
+                        ref: ref,
+                      ),
+                      onTap: () => openExercise(context, ref, ExerciseId.squat),
                     ),
                   ),
                 ),
@@ -125,13 +132,12 @@ class ExerciseSelectPage extends ConsumerWidget {
                         ),
                         title: const Text('Bicep Curl'),
                         subtitle: const Text('Device tuning preview'),
-                        trailing: const Icon(
-                          Icons.arrow_forward,
-                          color: AppColors.lime,
+                        trailing: _ExerciseActions(
+                          exercise: ExerciseId.bicepCurl,
+                          ref: ref,
                         ),
-                        onTap: () => ref
-                            .read(sessionControllerProvider.notifier)
-                            .prepareSession(exercise: ExerciseId.bicepCurl),
+                        onTap: () =>
+                            openExercise(context, ref, ExerciseId.bicepCurl),
                       ),
                     ),
                   ),
@@ -149,13 +155,12 @@ class ExerciseSelectPage extends ConsumerWidget {
                         ),
                         title: const Text('Lateral Raise'),
                         subtitle: const Text('Device tuning preview'),
-                        trailing: const Icon(
-                          Icons.arrow_forward,
-                          color: AppColors.lime,
+                        trailing: _ExerciseActions(
+                          exercise: ExerciseId.lateralRaise,
+                          ref: ref,
                         ),
-                        onTap: () => ref
-                            .read(sessionControllerProvider.notifier)
-                            .prepareSession(exercise: ExerciseId.lateralRaise),
+                        onTap: () =>
+                            openExercise(context, ref, ExerciseId.lateralRaise),
                       ),
                     ),
                   ),
@@ -173,13 +178,15 @@ class ExerciseSelectPage extends ConsumerWidget {
                         ),
                         title: const Text('Shoulder Press'),
                         subtitle: const Text('Device tuning preview'),
-                        trailing: const Icon(
-                          Icons.arrow_forward,
-                          color: AppColors.lime,
+                        trailing: _ExerciseActions(
+                          exercise: ExerciseId.shoulderPress,
+                          ref: ref,
                         ),
-                        onTap: () => ref
-                            .read(sessionControllerProvider.notifier)
-                            .prepareSession(exercise: ExerciseId.shoulderPress),
+                        onTap: () => openExercise(
+                          context,
+                          ref,
+                          ExerciseId.shoulderPress,
+                        ),
                       ),
                     ),
                   ),
@@ -190,6 +197,30 @@ class ExerciseSelectPage extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ExerciseActions extends StatelessWidget {
+  const _ExerciseActions({required this.exercise, required this.ref});
+
+  final ExerciseId exercise;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          key: Key('replay_${exercise.name}_demo'),
+          tooltip: 'Replay guided demo',
+          onPressed: () =>
+              openExercise(context, ref, exercise, replayDemo: true),
+          icon: const Icon(Icons.school_outlined),
+        ),
+        const Icon(Icons.arrow_forward, color: AppColors.lime),
+      ],
     );
   }
 }

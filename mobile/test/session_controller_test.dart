@@ -6,6 +6,7 @@ import 'package:right_posture/domain/models.dart';
 import 'package:right_posture/domain/rep_evaluator.dart';
 import 'package:right_posture/pose_landmark_mapper.dart';
 import 'package:right_posture/session_controller.dart';
+import 'package:right_posture/history_storage.dart';
 
 void main() {
   late ProviderContainer container;
@@ -380,6 +381,91 @@ void main() {
     expect(state.reps.last.status, RepStatus.degraded);
     expect(feedbackForRep(state.reps.last), 'Press both hands fully overhead');
   });
+
+  test('set completion appends exactly one immutable workout snapshot', () {
+    controller.startTracking();
+    completeRep(controller, 100);
+    controller.endSession();
+    controller.endSession();
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.workout.completedSets, hasLength(1));
+    expect(state.workout.completedSets.single.setNumber, 1);
+    expect(state.workout.completedSets.single.exercise, ExerciseId.squat);
+    expect(state.workout.completedSets.single.reps, hasLength(1));
+  });
+
+  test('next set preserves history and clears reps and baseline', () {
+    controller.startTracking();
+    for (var rep = 0; rep < 3; rep++) {
+      completeRep(controller, 100);
+    }
+    controller.endSession();
+    controller.nextSet();
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.preparing);
+    expect(state.selectedExercise, ExerciseId.squat);
+    expect(state.workout.completedSets, hasLength(1));
+    expect(state.reps, isEmpty);
+    expect(state.baseline, isNull);
+  });
+
+  test('change exercise preserves workout and finish/reset are explicit', () {
+    controller.startTracking();
+    completeRep(controller, 100);
+    controller.endSession();
+    controller.changeExercise();
+    expect(container.read(sessionControllerProvider).phase, SessionPhase.idle);
+    expect(
+      container.read(sessionControllerProvider).workout.completedSets,
+      hasLength(1),
+    );
+
+    controller.prepareSession(exercise: ExerciseId.bicepCurl);
+    controller.startTracking();
+    repeatCurl(controller, 165, 165);
+    repeatCurl(controller, 70, 75);
+    repeatCurl(controller, 165, 165);
+    controller.endSession();
+    controller.finishWorkout();
+
+    var state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.workoutComplete);
+    expect(state.workout.isFinished, isTrue);
+    expect(state.workout.completedSets, hasLength(2));
+    expect(state.workout.completedSets.map((set) => set.exercise), [
+      ExerciseId.squat,
+      ExerciseId.bicepCurl,
+    ]);
+
+    controller.reset();
+    state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.idle);
+    expect(state.workout.completedSets, isEmpty);
+  });
+
+  test('finish workout persists once without blocking session state', () async {
+    final backend = TestHistoryBackend();
+    final localContainer = ProviderContainer(
+      overrides: [
+        historyStorageProvider.overrideWithValue(HistoryStorage(backend)),
+      ],
+    );
+    addTearDown(localContainer.dispose);
+    final local = localContainer.read(sessionControllerProvider.notifier);
+    local.startTracking();
+    completeRep(local, 100);
+    local.endSession();
+    local.finishWorkout();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      localContainer.read(sessionControllerProvider).phase,
+      SessionPhase.workoutComplete,
+    );
+    expect(await HistoryStorage(backend).load(), hasLength(1));
+  });
 }
 
 void repeatShoulderPress(
@@ -458,3 +544,15 @@ void repeatSample(
 
 SquatFrameSample sample(double angle, {String side = 'left'}) =>
     SquatFrameSample(kneeAngle: angle, side: side, confidence: 0.9);
+
+class TestHistoryBackend implements HistoryBackend {
+  final values = <String, String>{};
+
+  @override
+  Future<String?> getString(String key) async => values[key];
+
+  @override
+  Future<void> setString(String key, String value) async {
+    values[key] = value;
+  }
+}

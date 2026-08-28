@@ -114,6 +114,14 @@ class CoachingCueCoordinator {
     _scheduleSpeech(text);
   }
 
+  void speak(String text, {required bool enabled}) {
+    if (!enabled) {
+      interrupt();
+      return;
+    }
+    _scheduleSpeech(text);
+  }
+
   void _handleHaptic(SquatCoaching? coaching, Rep? rep) {
     if (rep != null && rep.number != _lastHapticRep) {
       _lastHapticRep = rep.number;

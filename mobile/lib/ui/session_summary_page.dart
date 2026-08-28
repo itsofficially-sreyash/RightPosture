@@ -15,7 +15,13 @@ class SessionSummaryPage extends ConsumerWidget {
     final state = ref.watch(sessionControllerProvider);
     return SessionSummaryView(
       state: state,
-      onRestart: ref.read(sessionControllerProvider.notifier).reset,
+      onRestart: ref.read(sessionControllerProvider.notifier).nextSet,
+      onChangeExercise: ref
+          .read(sessionControllerProvider.notifier)
+          .changeExercise,
+      onFinishWorkout: ref
+          .read(sessionControllerProvider.notifier)
+          .finishWorkout,
     );
   }
 }
@@ -25,10 +31,14 @@ class SessionSummaryView extends StatelessWidget {
     super.key,
     required this.state,
     required this.onRestart,
+    this.onChangeExercise,
+    this.onFinishWorkout,
   });
 
   final SessionState state;
   final VoidCallback onRestart;
+  final VoidCallback? onChangeExercise;
+  final VoidCallback? onFinishWorkout;
 
   @override
   Widget build(BuildContext context) {
@@ -124,13 +134,25 @@ class SessionSummaryView extends StatelessWidget {
                         ),
                       const SizedBox(height: AppSpacing.extraLarge),
                       FilledButton(
-                        key: const Key('restart_session'),
+                        key: const Key('next_set'),
                         onPressed: onRestart,
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.background,
                           foregroundColor: AppColors.lime,
                         ),
-                        child: const Text('Restart'),
+                        child: const Text('Next set'),
+                      ),
+                      const SizedBox(height: AppSpacing.medium),
+                      OutlinedButton(
+                        key: const Key('change_exercise'),
+                        onPressed: onChangeExercise ?? onRestart,
+                        child: const Text('Change exercise'),
+                      ),
+                      const SizedBox(height: AppSpacing.medium),
+                      OutlinedButton(
+                        key: const Key('finish_workout'),
+                        onPressed: onFinishWorkout ?? onRestart,
+                        child: const Text('Finish workout'),
                       ),
                       const SizedBox(height: AppSpacing.medium),
                     ],

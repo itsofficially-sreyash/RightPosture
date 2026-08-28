@@ -178,7 +178,7 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _CameraSurface(
+              PoseCameraSurface(
                 pipeline: _pipeline,
                 onSwitchCamera: _switchCamera,
                 onRetry: _retry,
@@ -298,8 +298,9 @@ class PreparationHud extends StatelessWidget {
   }
 }
 
-class _CameraSurface extends StatelessWidget {
-  const _CameraSurface({
+class PoseCameraSurface extends StatelessWidget {
+  const PoseCameraSurface({
+    super.key,
     required this.pipeline,
     required this.onSwitchCamera,
     required this.onRetry,

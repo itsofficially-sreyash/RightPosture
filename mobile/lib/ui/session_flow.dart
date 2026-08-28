@@ -5,6 +5,7 @@ import '../pose_camera_page.dart';
 import '../session_controller.dart';
 import 'exercise_select_page.dart';
 import 'session_summary_page.dart';
+import 'workout_summary_page.dart';
 
 class SessionFlow extends ConsumerWidget {
   const SessionFlow({super.key});
@@ -20,6 +21,7 @@ class SessionFlow extends ConsumerWidget {
       SessionPhase.countdown => const PoseCameraPage(),
       SessionPhase.tracking => const PoseCameraPage(),
       SessionPhase.complete => const SessionSummaryPage(),
+      SessionPhase.workoutComplete => const WorkoutSummaryPage(),
     };
   }
 }

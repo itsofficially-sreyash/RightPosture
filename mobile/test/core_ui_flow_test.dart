@@ -4,14 +4,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:right_posture/domain/models.dart';
 import 'package:right_posture/domain/exercise.dart';
 import 'package:right_posture/domain/squat_rep_detector.dart';
+import 'package:right_posture/domain/workout.dart';
+import 'package:right_posture/history_storage.dart';
 import 'package:right_posture/pose_camera_page.dart';
 import 'package:right_posture/pose_pipeline.dart';
 import 'package:right_posture/session_controller.dart';
 import 'package:right_posture/settings_controller.dart';
 import 'package:right_posture/ui/app_theme.dart';
 import 'package:right_posture/ui/exercise_select_page.dart';
+import 'package:right_posture/ui/guided_demo_page.dart';
 import 'package:right_posture/ui/session_summary_page.dart';
 import 'package:right_posture/ui/settings_page.dart';
+import 'package:right_posture/ui/workout_summary_page.dart';
 
 void main() {
   test('failed pipeline hides live HUD so recovery actions stay reachable', () {
@@ -22,6 +26,11 @@ void main() {
   testWidgets('squat card starts a tracking session', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          historyStorageProvider.overrideWithValue(
+            HistoryStorage(VisitedHistoryBackend()),
+          ),
+        ],
         child: MaterialApp(
           theme: buildAppTheme(),
           home: const ExerciseSelectPage(),
@@ -34,15 +43,54 @@ void main() {
     expect(container.read(sessionControllerProvider).phase, SessionPhase.idle);
 
     await tester.tap(find.byKey(const Key('select_squat')));
+    await tester.pump();
     expect(
       container.read(sessionControllerProvider).phase,
       SessionPhase.preparing,
     );
   });
 
+  testWidgets('first exercise visit opens guided demo without starting set', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          historyStorageProvider.overrideWithValue(
+            HistoryStorage(EmptyHistoryBackend()),
+          ),
+          initialCoachingPreferencesProvider.overrideWithValue(
+            const CoachingPreferences(ttsEnabled: false),
+          ),
+        ],
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const ExerciseSelectPage(),
+        ),
+      ),
+    );
+    final context = tester.element(find.byType(ExerciseSelectPage));
+    final container = ProviderScope.containerOf(context);
+
+    await tester.tap(find.byKey(const Key('select_squat')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(GuidedDemoPage), findsOneWidget);
+    expect(container.read(sessionControllerProvider).phase, SessionPhase.idle);
+    await tester.tap(find.byKey(const Key('close_guided_demo')));
+    await tester.pumpAndSettle();
+    expect(container.read(sessionControllerProvider).phase, SessionPhase.idle);
+  });
+
   testWidgets('debug curl card starts bicep curl preparation', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          historyStorageProvider.overrideWithValue(
+            HistoryStorage(VisitedHistoryBackend()),
+          ),
+        ],
         child: MaterialApp(
           theme: buildAppTheme(),
           home: const ExerciseSelectPage(),
@@ -53,6 +101,7 @@ void main() {
     final context = tester.element(find.byType(ExerciseSelectPage));
     final container = ProviderScope.containerOf(context);
     await tester.tap(find.byKey(const Key('select_bicep_curl')));
+    await tester.pump();
 
     final state = container.read(sessionControllerProvider);
     expect(state.phase, SessionPhase.preparing);
@@ -64,6 +113,11 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          historyStorageProvider.overrideWithValue(
+            HistoryStorage(VisitedHistoryBackend()),
+          ),
+        ],
         child: MaterialApp(
           theme: buildAppTheme(),
           home: const ExerciseSelectPage(),
@@ -81,6 +135,7 @@ void main() {
     final context = tester.element(find.byType(ExerciseSelectPage));
     final container = ProviderScope.containerOf(context);
     await tester.tap(find.byKey(const Key('select_lateral_raise')));
+    await tester.pump();
 
     final state = container.read(sessionControllerProvider);
     expect(state.phase, SessionPhase.preparing);
@@ -379,6 +434,7 @@ void main() {
       MaterialApp(
         theme: buildAppTheme(),
         home: SessionSummaryView(
+          key: const Key('empty_summary'),
           state: SessionState(
             phase: SessionPhase.complete,
             selectedExercise: ExerciseId.squat,
@@ -441,10 +497,9 @@ void main() {
 
     await tester.scrollUntilVisible(
       find.byKey(const Key('rep_timeline_4')),
-      200,
+      50,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -100));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('rep_timeline_4')));
     await tester.pumpAndSettle();
@@ -452,6 +507,53 @@ void main() {
     expect(find.text('Tempo: 2.0 s'), findsOneWidget);
     expect(find.text('Arm elevation: 80.0°'), findsOneWidget);
     expect(find.text('Confidence: 90%'), findsOneWidget);
+  });
+
+  testWidgets('workout summary compares only same-exercise sets', (
+    tester,
+  ) async {
+    CompletedSet set(int number, ExerciseId exercise, double score) =>
+        CompletedSet(
+          setNumber: number,
+          exercise: exercise,
+          completedAt: DateTime(2026),
+          reps: const [],
+          summary: SessionSummary(
+            totalReps: 5,
+            formScorePercent: score,
+            degradationStartRep: null,
+            primaryResponsibleJoint: null,
+            repChecklist: const [],
+          ),
+        );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: WorkoutSummaryView(
+          workout: WorkoutState(
+            completedSets: [
+              set(1, ExerciseId.squat, 60),
+              set(2, ExerciseId.bicepCurl, 95),
+              set(3, ExerciseId.squat, 80),
+            ],
+            isFinished: true,
+          ),
+          onNewWorkout: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('3 sets · 15 reps'), findsOneWidget);
+    expect(find.text('Squat'), findsOneWidget);
+    expect(find.text('Form Score improved by 20 points.'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Bicep Curl'),
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Bicep Curl'), findsOneWidget);
+    expect(find.text('Form Score improved by 35 points.'), findsNothing);
   });
 
   testWidgets('exercise selection fits 320px width at 200% text scale', (
@@ -522,6 +624,26 @@ void main() {
     expect(find.byKey(const Key('end_session')), findsOneWidget);
     expect(find.text('Go lower'), findsOneWidget);
   });
+}
+
+class VisitedHistoryBackend implements HistoryBackend {
+  static const _value =
+      '{"version":1,"workouts":[],"demoVisits":'
+      '["squat","bicepCurl","lateralRaise","shoulderPress"]}';
+
+  @override
+  Future<String?> getString(String key) async => _value;
+
+  @override
+  Future<void> setString(String key, String value) async {}
+}
+
+class EmptyHistoryBackend implements HistoryBackend {
+  @override
+  Future<String?> getString(String key) async => null;
+
+  @override
+  Future<void> setString(String key, String value) async {}
 }
 
 Rep calibrationRep(int number) => Rep(

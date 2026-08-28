@@ -9,9 +9,18 @@ import 'domain/exercise_registry.dart';
 import 'domain/rep_evaluator.dart';
 import 'domain/session_summary.dart';
 import 'domain/squat_rep_detector.dart';
+import 'domain/workout.dart';
 import 'pose_landmark_mapper.dart';
+import 'history_storage.dart';
 
-enum SessionPhase { idle, preparing, countdown, tracking, complete }
+enum SessionPhase {
+  idle,
+  preparing,
+  countdown,
+  tracking,
+  complete,
+  workoutComplete,
+}
 
 class SessionState {
   SessionState({
@@ -26,8 +35,10 @@ class SessionState {
     this.placementStable = false,
     this.placementGuidance,
     this.countdownValue,
+    WorkoutState? workout,
   }) : reps = List.unmodifiable(reps),
-       baseline = baseline == null ? null : Map.unmodifiable(baseline);
+       baseline = baseline == null ? null : Map.unmodifiable(baseline),
+       workout = workout ?? WorkoutState();
 
   factory SessionState.idle() => SessionState(
     phase: SessionPhase.idle,
@@ -45,6 +56,7 @@ class SessionState {
   final bool placementStable;
   final String? placementGuidance;
   final int? countdownValue;
+  final WorkoutState workout;
 }
 
 final sessionControllerProvider =
@@ -82,6 +94,7 @@ class SessionController extends Notifier<SessionState> {
       phase: SessionPhase.preparing,
       selectedExercise: exercise,
       placementGuidance: _registry.profileFor(exercise).setupInstruction,
+      workout: state.workout,
     );
   }
 
@@ -102,6 +115,7 @@ class SessionController extends Notifier<SessionState> {
         phase: SessionPhase.preparing,
         selectedExercise: state.selectedExercise,
         placementGuidance: result.message,
+        workout: state.workout,
       );
       return;
     }
@@ -118,6 +132,7 @@ class SessionController extends Notifier<SessionState> {
       selectedExercise: state.selectedExercise,
       placementStable: stable,
       placementGuidance: result.message,
+      workout: state.workout,
     );
     if (stable) startCountdown();
   }
@@ -131,6 +146,7 @@ class SessionController extends Notifier<SessionState> {
       placementStable: true,
       placementGuidance: state.placementGuidance,
       countdownValue: 3,
+      workout: state.workout,
     );
     _countdownTimer = Timer.periodic(
       const Duration(seconds: 1),
@@ -151,6 +167,7 @@ class SessionController extends Notifier<SessionState> {
       placementStable: true,
       placementGuidance: state.placementGuidance,
       countdownValue: value - 1,
+      workout: state.workout,
     );
   }
 
@@ -160,6 +177,7 @@ class SessionController extends Notifier<SessionState> {
     state = SessionState(
       phase: SessionPhase.tracking,
       selectedExercise: state.selectedExercise,
+      workout: state.workout,
     );
   }
 
@@ -197,6 +215,7 @@ class SessionController extends Notifier<SessionState> {
         baseline: state.baseline,
         latestFeedback: state.latestFeedback,
         coaching: coaching,
+        workout: state.workout,
       );
       return;
     }
@@ -215,6 +234,7 @@ class SessionController extends Notifier<SessionState> {
       baseline: _evaluator.baseline,
       latestFeedback: rep,
       coaching: coaching,
+      workout: state.workout,
     );
   }
 
@@ -261,6 +281,7 @@ class SessionController extends Notifier<SessionState> {
       reps: [...state.reps, rep],
       baseline: _evaluator.baseline,
       latestFeedback: rep,
+      workout: state.workout,
     );
   }
 
@@ -328,19 +349,75 @@ class SessionController extends Notifier<SessionState> {
       reps: [...state.reps, rep],
       baseline: _evaluator.baseline,
       latestFeedback: rep,
+      workout: state.workout,
     );
   }
 
   void endSession() {
     if (state.phase != SessionPhase.tracking) return;
+    final summary = summarizeSession(
+      state.reps,
+      exercise: state.selectedExercise,
+    );
+    final completed = CompletedSet(
+      setNumber: state.workout.completedSets.length + 1,
+      exercise: state.selectedExercise,
+      completedAt: DateTime.now(),
+      reps: state.reps,
+      summary: summary,
+    );
     state = SessionState(
       phase: SessionPhase.complete,
       selectedExercise: state.selectedExercise,
       reps: state.reps,
       baseline: state.baseline,
       coaching: state.coaching,
-      summary: summarizeSession(state.reps, exercise: state.selectedExercise),
+      summary: summary,
+      workout: WorkoutState(
+        completedSets: [...state.workout.completedSets, completed],
+      ),
     );
+  }
+
+  void nextSet() {
+    if (state.phase != SessionPhase.complete) return;
+    prepareSession(exercise: state.selectedExercise);
+  }
+
+  void changeExercise() {
+    if (state.phase != SessionPhase.complete) return;
+    _cancelCountdown();
+    _resetEngines(ExerciseId.squat);
+    state = SessionState(
+      phase: SessionPhase.idle,
+      selectedExercise: ExerciseId.squat,
+      workout: state.workout,
+    );
+  }
+
+  void finishWorkout() {
+    if (state.phase != SessionPhase.complete ||
+        state.workout.completedSets.isEmpty) {
+      return;
+    }
+    state = SessionState(
+      phase: SessionPhase.workoutComplete,
+      selectedExercise: state.selectedExercise,
+      workout: WorkoutState(
+        completedSets: state.workout.completedSets,
+        isFinished: true,
+      ),
+    );
+    try {
+      unawaited(
+        ref
+            .read(historyStorageProvider)
+            .saveWorkout(state.workout)
+            .catchError((_) {}),
+      );
+    } catch (_) {
+      // Local history failure never blocks completed workout flow.
+    }
   }
 
   void reportFailure(String message) {
@@ -353,6 +430,7 @@ class SessionController extends Notifier<SessionState> {
       baseline: state.baseline,
       coaching: state.coaching,
       error: message,
+      workout: state.workout,
     );
   }
 
@@ -364,6 +442,7 @@ class SessionController extends Notifier<SessionState> {
       reps: state.reps,
       baseline: state.baseline,
       coaching: state.coaching,
+      workout: state.workout,
     );
   }
 
@@ -392,6 +471,7 @@ class SessionController extends Notifier<SessionState> {
       selectedExercise: state.selectedExercise,
       reps: state.reps,
       baseline: state.baseline,
+      workout: state.workout,
     );
   }
 
