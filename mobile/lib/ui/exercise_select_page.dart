@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/exercise.dart';
 import '../session_controller.dart';
 import 'app_theme.dart';
 import 'settings_page.dart';
@@ -108,6 +110,32 @@ class ExerciseSelectPage extends ConsumerWidget {
                     ),
                   ),
                 ),
+                if (kDebugMode) ...[
+                  const SizedBox(height: AppSpacing.medium),
+                  Semantics(
+                    button: true,
+                    label: 'Start bicep curl test session',
+                    child: Card(
+                      child: ListTile(
+                        key: const Key('select_bicep_curl'),
+                        contentPadding: const EdgeInsets.all(AppSpacing.medium),
+                        leading: const Icon(
+                          Icons.fitness_center,
+                          color: AppColors.lime,
+                        ),
+                        title: const Text('Bicep Curl'),
+                        subtitle: const Text('Device tuning preview'),
+                        trailing: const Icon(
+                          Icons.arrow_forward,
+                          color: AppColors.lime,
+                        ),
+                        onTap: () => ref
+                            .read(sessionControllerProvider.notifier)
+                            .prepareSession(exercise: ExerciseId.bicepCurl),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.extraLarge),
               ],
             ),

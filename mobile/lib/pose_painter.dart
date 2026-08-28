@@ -5,6 +5,52 @@ import 'domain/joint_angle.dart';
 import 'pose_landmark_mapper.dart';
 
 const poseInterpolationDuration = Duration(milliseconds: 50);
+const displayLandmarkMinimumConfidence = 0.6;
+
+class DisplayPoseStabilizer {
+  DisplayPoseStabilizer({
+    this.stationaryAlpha = 0.2,
+    this.movingAlpha = 0.7,
+    this.movementThreshold = 4,
+    this.minimumConfidence = displayLandmarkMinimumConfidence,
+  });
+
+  final double stationaryAlpha;
+  final double movingAlpha;
+  final double movementThreshold;
+  final double minimumConfidence;
+  MappedPose? _previous;
+
+  List<MappedPose> update(List<MappedPose> poses) {
+    if (poses.isEmpty) {
+      reset();
+      return const [];
+    }
+    final candidate = poses.first;
+    final stabilized = MappedPose({
+      for (final entry in candidate.landmarks.entries)
+        if (entry.value.confidence >= minimumConfidence)
+          entry.key: _blendLandmark(
+            _previous?.landmarks[entry.key],
+            entry.value,
+            _alphaFor(_previous?.landmarks[entry.key], entry.value),
+          ),
+    });
+    _previous = stabilized;
+    return stabilized.landmarks.isEmpty ? const [] : [stabilized];
+  }
+
+  double _alphaFor(LandmarkSample? previous, LandmarkSample current) {
+    if (previous == null) return 1;
+    final x = current.point.x - previous.point.x;
+    final y = current.point.y - previous.point.y;
+    return math.sqrt(x * x + y * y) > movementThreshold
+        ? movingAlpha
+        : stationaryAlpha;
+  }
+
+  void reset() => _previous = null;
+}
 
 Offset translatePosePoint({
   required Offset point,
@@ -90,14 +136,16 @@ class PoseOverlay extends StatefulWidget {
 class _PoseOverlayState extends State<PoseOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final DisplayPoseStabilizer _stabilizer;
   late List<MappedPose> _from;
   late List<MappedPose> _target;
 
   @override
   void initState() {
     super.initState();
-    _from = widget.poses;
-    _target = widget.poses;
+    _stabilizer = DisplayPoseStabilizer();
+    _from = _stabilizer.update(widget.poses);
+    _target = _from;
     _controller = AnimationController(
       vsync: this,
       duration: poseInterpolationDuration,
@@ -109,14 +157,15 @@ class _PoseOverlayState extends State<PoseOverlay>
   void didUpdateWidget(PoseOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (identical(oldWidget.poses, widget.poses)) return;
-    if (widget.poses.isEmpty || !widget.interpolate) {
+    final stabilized = _stabilizer.update(widget.poses);
+    if (stabilized.isEmpty || !widget.interpolate) {
       _controller.stop();
-      _from = widget.poses;
-      _target = widget.poses;
+      _from = stabilized;
+      _target = stabilized;
       return;
     }
     _from = interpolateMappedPoses(_from, _target, _controller.value);
-    _target = smoothMappedPoses(oldWidget.poses, widget.poses);
+    _target = stabilized;
     _controller.forward(from: 0);
   }
 
@@ -202,11 +251,16 @@ class PosePainter extends CustomPainter {
       for (final (startType, endType) in _connections) {
         final start = pose.landmarks[startType];
         final end = pose.landmarks[endType];
-        if (start != null && end != null) {
+        if (start != null &&
+            end != null &&
+            start.confidence >= displayLandmarkMinimumConfidence &&
+            end.confidence >= displayLandmarkMinimumConfidence) {
           canvas.drawLine(point(start), point(end), paint);
         }
       }
-      for (final landmark in pose.landmarks.values) {
+      for (final landmark in pose.landmarks.values.where(
+        (landmark) => landmark.confidence >= displayLandmarkMinimumConfidence,
+      )) {
         canvas.drawCircle(point(landmark), 4, paint);
       }
     }

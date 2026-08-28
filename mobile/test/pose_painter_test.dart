@@ -123,6 +123,104 @@ void main() {
     expect(smoothMappedPoses(start, const []), isEmpty);
   });
 
+  test('display stabilizer damps stationary landmark jitter', () {
+    final stabilizer = DisplayPoseStabilizer();
+    stabilizer.update([
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(100, 100),
+          confidence: 0.9,
+        ),
+      }),
+    ]);
+
+    final result = stabilizer.update([
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(102, 98),
+          confidence: 0.9,
+        ),
+      }),
+    ]);
+
+    final point = result.single.landmarks[BodyJoint.leftKnee]!.point;
+    expect(point.x, 100.4);
+    expect(point.y, 99.6);
+  });
+
+  test('display stabilizer follows intentional movement quickly', () {
+    final stabilizer = DisplayPoseStabilizer();
+    stabilizer.update([
+      MappedPose({
+        BodyJoint.leftWrist: const LandmarkSample(
+          point: Point2(10, 10),
+          confidence: 0.9,
+        ),
+      }),
+    ]);
+
+    final result = stabilizer.update([
+      MappedPose({
+        BodyJoint.leftWrist: const LandmarkSample(
+          point: Point2(30, 10),
+          confidence: 0.9,
+        ),
+      }),
+    ]);
+
+    expect(result.single.landmarks[BodyJoint.leftWrist]!.point.x, 24);
+  });
+
+  test('display stabilizer filters weak joints and phantom poses', () {
+    final stabilizer = DisplayPoseStabilizer();
+    final result = stabilizer.update([
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(10, 10),
+          confidence: 0.9,
+        ),
+        BodyJoint.leftAnkle: const LandmarkSample(
+          point: Point2(20, 20),
+          confidence: 0.2,
+        ),
+      }),
+      MappedPose({
+        BodyJoint.rightKnee: const LandmarkSample(
+          point: Point2(90, 90),
+          confidence: 0.9,
+        ),
+      }),
+    ]);
+
+    expect(result, hasLength(1));
+    expect(result.single.landmarks, contains(BodyJoint.leftKnee));
+    expect(result.single.landmarks, isNot(contains(BodyJoint.leftAnkle)));
+    expect(result.single.landmarks, isNot(contains(BodyJoint.rightKnee)));
+  });
+
+  test('display stabilizer resets after tracking loss', () {
+    final stabilizer = DisplayPoseStabilizer();
+    stabilizer.update([
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(10, 10),
+          confidence: 0.9,
+        ),
+      }),
+    ]);
+    expect(stabilizer.update(const []), isEmpty);
+
+    final result = stabilizer.update([
+      MappedPose({
+        BodyJoint.leftKnee: const LandmarkSample(
+          point: Point2(90, 90),
+          confidence: 0.9,
+        ),
+      }),
+    ]);
+    expect(result.single.landmarks[BodyJoint.leftKnee]!.point.x, 90);
+  });
+
   testWidgets('reduced motion bypasses overlay animation', (tester) async {
     final poses = [
       MappedPose({

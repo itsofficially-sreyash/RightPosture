@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
 import 'pose_pipeline.dart';
+import 'domain/exercise.dart';
 
 class PosePipelineStatusPanel extends StatelessWidget {
   const PosePipelineStatusPanel({
@@ -10,12 +11,14 @@ class PosePipelineStatusPanel extends StatelessWidget {
     required this.onRetry,
     this.onOpenSettings,
     this.showDiagnostics = kDebugMode,
+    this.exercise = ExerciseId.squat,
   });
 
   final PosePipelineSnapshot snapshot;
   final VoidCallback onRetry;
   final VoidCallback? onOpenSettings;
   final bool showDiagnostics;
+  final ExerciseId exercise;
 
   @override
   Widget build(BuildContext context) {
@@ -65,12 +68,19 @@ class PosePipelineStatusPanel extends StatelessWidget {
       PosePipelineStatus.lowConfidence => 'Show your full body',
       _ => 'Pose ready',
     };
-    final candidate = snapshot.squatCandidate;
-    final diagnostics = candidate == null
-        ? ''
-        : '\nKnee: ${candidate.kneeAngle.toStringAsFixed(1)}\u00b0'
-              ' (${candidate.side})\n'
-              'Confidence: ${(candidate.confidence * 100).toStringAsFixed(0)}%';
+    var diagnostics = '';
+    if (exercise == ExerciseId.bicepCurl && snapshot.bicepCurlSample != null) {
+      final sample = snapshot.bicepCurlSample!;
+      diagnostics =
+          '\nElbows: ${sample.leftElbowAngle.toStringAsFixed(1)}\u00b0 / '
+          '${sample.rightElbowAngle.toStringAsFixed(1)}\u00b0';
+    } else if (snapshot.squatCandidate != null) {
+      final candidate = snapshot.squatCandidate!;
+      diagnostics =
+          '\nKnee: ${candidate.kneeAngle.toStringAsFixed(1)}\u00b0'
+          ' (${candidate.side})\n'
+          'Confidence: ${(candidate.confidence * 100).toStringAsFixed(0)}%';
+    }
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.7),

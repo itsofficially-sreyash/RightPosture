@@ -41,18 +41,23 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     if (ref.read(settingsControllerProvider).ttsEnabled) {
       unawaited(_cues.prepare());
     }
-    _pipeline = PosePipeline()..addListener(_refresh);
+    _pipeline = PosePipeline(
+      exercise: ref.read(sessionControllerProvider).selectedExercise,
+    )..addListener(_refresh);
     unawaited(_pipeline.start());
   }
 
   void _refresh() {
     if (!mounted) return;
     final snapshot = _pipeline.snapshot;
+    final currentPhase = ref.read(sessionControllerProvider).phase;
     if (snapshot.status == PosePipelineStatus.noPerson ||
         snapshot.status == PosePipelineStatus.lowConfidence ||
         snapshot.status == PosePipelineStatus.failed) {
       _cues.interrupt();
-      ref.read(sessionControllerProvider.notifier).trackingInterrupted();
+      if (currentPhase == SessionPhase.tracking) {
+        ref.read(sessionControllerProvider.notifier).trackingInterrupted();
+      }
     }
     if (snapshot.status != _pipelineStatus ||
         snapshot.error != _pipelineError) {
@@ -68,19 +73,31 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
       if (sessionState.phase == SessionPhase.preparing ||
           sessionState.phase == SessionPhase.countdown) {
         final imageSize = snapshot.imageSize;
+        final pose = snapshot.poses.isEmpty ? null : snapshot.poses.first;
         session.acceptPreparationResult(
-          evaluateSquatPlacement(
-            snapshot.poses.isEmpty ? null : snapshot.poses.first,
-            imageWidth: imageSize?.width ?? 0,
-            imageHeight: imageSize?.height ?? 0,
-          ),
+          sessionState.selectedExercise == ExerciseId.bicepCurl
+              ? evaluateBicepCurlPlacement(
+                  pose,
+                  imageWidth: imageSize?.width ?? 0,
+                  imageHeight: imageSize?.height ?? 0,
+                )
+              : evaluateSquatPlacement(
+                  pose,
+                  imageWidth: imageSize?.width ?? 0,
+                  imageHeight: imageSize?.height ?? 0,
+                ),
         );
       }
       if (snapshot.status == PosePipelineStatus.failed) {
         session.reportFailure(snapshot.error ?? 'Pose pipeline failed');
       } else if (sessionState.phase == SessionPhase.tracking) {
-        final sample = snapshot.squatSample;
-        if (sample != null) session.acceptPoseSample(sample);
+        if (sessionState.selectedExercise == ExerciseId.bicepCurl) {
+          final sample = snapshot.bicepCurlSample;
+          if (sample != null) session.acceptBicepCurlSample(sample);
+        } else {
+          final sample = snapshot.squatSample;
+          if (sample != null) session.acceptPoseSample(sample);
+        }
       }
     }
   }
@@ -162,7 +179,14 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
                   alignment: Alignment.bottomCenter,
                   child: PreparationHud(
                     state: session,
-                    instruction: squatExerciseProfile.setupInstruction,
+                    exerciseName:
+                        session.selectedExercise == ExerciseId.bicepCurl
+                        ? bicepCurlExerciseProfile.displayName
+                        : squatExerciseProfile.displayName,
+                    instruction:
+                        session.selectedExercise == ExerciseId.bicepCurl
+                        ? bicepCurlExerciseProfile.setupInstruction
+                        : squatExerciseProfile.setupInstruction,
                     onStart: ref
                         .read(sessionControllerProvider.notifier)
                         .startCountdown,
@@ -196,11 +220,13 @@ class PreparationHud extends StatelessWidget {
   const PreparationHud({
     super.key,
     required this.state,
+    required this.exerciseName,
     required this.instruction,
     required this.onStart,
   });
 
   final SessionState state;
+  final String exerciseName;
   final String instruction;
   final VoidCallback onStart;
 
@@ -227,7 +253,7 @@ class PreparationHud extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Set up your squat',
+                      'Set up your $exerciseName',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: AppSpacing.small),
@@ -291,6 +317,7 @@ class _CameraSurface extends StatelessWidget {
             !controller.value.isInitialized) {
           return PosePipelineStatusPanel(
             snapshot: snapshot,
+            exercise: pipeline.exercise,
             onRetry: onRetry,
             onOpenSettings: onOpenSettings,
           );
@@ -315,7 +342,9 @@ class _CameraSurface extends StatelessWidget {
                         ? null
                         : RepaintBoundary(
                             child: PoseOverlay(
-                              poses: snapshot.poses,
+                              poses: snapshot.status == PosePipelineStatus.ready
+                                  ? snapshot.poses
+                                  : const [],
                               imageSize: snapshot.imageSize!,
                               rotationDegrees: snapshot.rotationDegrees,
                               mirrored: snapshot.mirrored,
@@ -332,6 +361,7 @@ class _CameraSurface extends StatelessWidget {
               left: 12,
               child: PosePipelineStatusPanel(
                 snapshot: snapshot,
+                exercise: pipeline.exercise,
                 onRetry: onRetry,
                 onOpenSettings: onOpenSettings,
               ),

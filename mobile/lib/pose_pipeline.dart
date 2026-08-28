@@ -9,6 +9,7 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'input_image_converter.dart';
 import 'async_serial_queue.dart';
 import 'pose_landmark_mapper.dart';
+import 'domain/exercise.dart';
 
 enum PosePipelineStatus { initializing, ready, noPerson, lowConfidence, failed }
 
@@ -20,6 +21,7 @@ class PosePipelineSnapshot {
     List<MappedPose> poses = const [],
     this.squatSample,
     this.squatCandidate,
+    this.bicepCurlSample,
     this.imageSize,
     this.rotationDegrees = 0,
     this.mirrored = false,
@@ -33,6 +35,7 @@ class PosePipelineSnapshot {
   final List<MappedPose> poses;
   final SquatFrameSample? squatSample;
   final SquatFrameSample? squatCandidate;
+  final BicepCurlFrameSample? bicepCurlSample;
   final Size? imageSize;
   final int rotationDegrees;
   final bool mirrored;
@@ -43,10 +46,12 @@ class PosePipelineSnapshot {
 }
 
 class PosePipeline extends ChangeNotifier {
-  PosePipeline()
+  PosePipeline({this.exercise = ExerciseId.squat})
     : _detector = PoseDetector(
         options: PoseDetectorOptions(mode: PoseDetectionMode.stream),
       );
+
+  final ExerciseId exercise;
 
   final PoseDetector _detector;
   final AsyncSerialQueue _lifecycle = AsyncSerialQueue();
@@ -156,9 +161,13 @@ class PosePipeline extends ChangeNotifier {
       if (_closed || generation != _generation) return;
       final mapped = mapPoses(poses);
       _consecutiveFrameFailures = 0;
+      final exerciseSampleReady = switch (exercise) {
+        ExerciseId.bicepCurl => mapped.bicepCurlSample != null,
+        _ => mapped.squatSample != null,
+      };
       final status = poses.isEmpty
           ? PosePipelineStatus.noPerson
-          : mapped.squatSample == null
+          : !exerciseSampleReady
           ? PosePipelineStatus.lowConfidence
           : PosePipelineStatus.ready;
       _publish(
@@ -167,6 +176,7 @@ class PosePipeline extends ChangeNotifier {
           poses: mapped.poses,
           squatSample: mapped.squatSample,
           squatCandidate: mapped.squatCandidate,
+          bicepCurlSample: mapped.bicepCurlSample,
           imageSize: input.metadata?.size,
           rotationDegrees: _rotationDegrees(input.metadata?.rotation),
           mirrored: camera.lensDirection == CameraLensDirection.front,

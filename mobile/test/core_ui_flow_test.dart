@@ -40,6 +40,25 @@ void main() {
     );
   });
 
+  testWidgets('debug curl card starts bicep curl preparation', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: const ExerciseSelectPage(),
+        ),
+      ),
+    );
+
+    final context = tester.element(find.byType(ExerciseSelectPage));
+    final container = ProviderScope.containerOf(context);
+    await tester.tap(find.byKey(const Key('select_bicep_curl')));
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.preparing);
+    expect(state.selectedExercise, ExerciseId.bicepCurl);
+  });
+
   testWidgets('squat preparation fits compact screen at 200% text scale', (
     tester,
   ) async {
@@ -63,6 +82,7 @@ void main() {
                   placementStable: true,
                   placementGuidance: 'Position ready',
                 ),
+                exerciseName: 'Squat',
                 instruction: squatExerciseProfile.setupInstruction,
                 onStart: () {},
               ),
@@ -75,6 +95,28 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byKey(const Key('start_set')), findsOneWidget);
     expect(find.text('Position ready'), findsOneWidget);
+  });
+
+  testWidgets('curl preparation contains no squat copy', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: PreparationHud(
+            state: SessionState(
+              phase: SessionPhase.preparing,
+              selectedExercise: ExerciseId.bicepCurl,
+            ),
+            exerciseName: 'Bicep Curl',
+            instruction: bicepCurlExerciseProfile.setupInstruction,
+            onStart: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Set up your Bicep Curl'), findsOneWidget);
+    expect(find.textContaining('squat', findRichText: true), findsNothing);
   });
 
   testWidgets('live HUD shows calibration and ends the set', (tester) async {

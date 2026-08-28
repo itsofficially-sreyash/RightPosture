@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:right_posture/domain/bicep_curl_rep_detector.dart';
 import 'package:right_posture/domain/exercise.dart';
 import 'package:right_posture/domain/exercise_registry.dart';
 import 'package:right_posture/domain/squat_rep_detector.dart';
@@ -84,8 +85,21 @@ void main() {
     const registry = ExerciseRegistry();
 
     expect(
-      () => registry.detectorFor(ExerciseId.bicepCurl),
+      () => registry.detectorFor(ExerciseId.shoulderPress),
       throwsUnsupportedError,
+    );
+  });
+
+  test('registry exposes hidden bicep curl domain slice', () {
+    const registry = ExerciseRegistry();
+
+    expect(
+      registry.profileFor(ExerciseId.bicepCurl),
+      same(bicepCurlExerciseProfile),
+    );
+    expect(
+      registry.detectorFor(ExerciseId.bicepCurl),
+      isA<BicepCurlRepDetector>(),
     );
   });
 }

@@ -2,9 +2,17 @@ import 'exercise.dart';
 import 'models.dart';
 
 class RepEvaluator {
-  RepEvaluator(this.thresholds);
+  RepEvaluator(
+    this.thresholds, {
+    this.exercise = ExerciseId.squat,
+    Map<String, MovementMetric> metrics = const {
+      'knee': MovementMetric.kneeAngle,
+    },
+  }) : metrics = Map.unmodifiable(metrics);
 
   final ExerciseThresholds thresholds;
+  final ExerciseId exercise;
+  final Map<String, MovementMetric> metrics;
   final List<Map<String, double>> _calibrationSamples = [];
   final Map<String, int> _deviationCounts = {};
   Map<String, double>? _baseline;
@@ -49,7 +57,7 @@ class RepEvaluator {
         metrics: metrics,
         issues: [
           RepIssue(
-            exercise: ExerciseId.squat,
+            exercise: exercise,
             metric: _metricForJoint(absoluteFailure),
             direction: value < threshold.minimum
                 ? IssueDirection.aboveRange
@@ -81,7 +89,7 @@ class RepEvaluator {
         }
         issues.add(
           RepIssue(
-            exercise: ExerciseId.squat,
+            exercise: exercise,
             metric: _metricForJoint(joint),
             direction: angles[joint]! > _baseline![joint]!
                 ? IssueDirection.increased
@@ -117,10 +125,8 @@ class RepEvaluator {
     );
   }
 
-  MovementMetric _metricForJoint(String joint) => switch (joint) {
-    'knee' => MovementMetric.kneeAngle,
-    _ => throw StateError('Unsupported squat metric: $joint'),
-  };
+  MovementMetric _metricForJoint(String joint) =>
+      metrics[joint] ?? (throw StateError('Unsupported metric: $joint'));
 
   void reset() {
     _calibrationSamples.clear();

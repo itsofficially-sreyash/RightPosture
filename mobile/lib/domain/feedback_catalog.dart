@@ -37,6 +37,16 @@ String feedbackForIssue(RepIssue issue) {
       IssueDirection.asymmetric => 'Keep both knees moving evenly',
     };
   }
+  if (issue.exercise == ExerciseId.bicepCurl &&
+      (issue.metric == MovementMetric.leftElbowAngle ||
+          issue.metric == MovementMetric.rightElbowAngle)) {
+    return switch (issue.direction) {
+      IssueDirection.belowRange ||
+      IssueDirection.increased => 'Curl through a little more range',
+      IssueDirection.asymmetric => 'Move both arms together',
+      _ => 'Keep your curl range consistent',
+    };
+  }
   return 'Your movement changed from your baseline';
 }
 
@@ -48,6 +58,7 @@ String metricLabel(MovementMetric metric) => switch (metric) {
   MovementMetric.leftElbowAngle ||
   MovementMetric.rightElbowAngle => 'Elbow range',
   MovementMetric.torsoLean => 'Torso position',
+  MovementMetric.torsoVerticalPosition => 'Torso movement',
   MovementMetric.armElevation => 'Arm elevation',
   MovementMetric.stanceWidth => 'Stance width',
   MovementMetric.wristHeightSymmetry => 'Arm symmetry',

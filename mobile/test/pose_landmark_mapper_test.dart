@@ -79,6 +79,44 @@ void main() {
     expect(nearEdge.status, PlacementStatus.nearEdge);
     expect(missing.status, PlacementStatus.missingLandmarks);
   });
+
+  test('maps bilateral elbow angles for bicep curl', () {
+    final result = mapPoses([poseWithArms()]);
+
+    expect(result.bicepCurlSample, isNotNull);
+    expect(result.bicepCurlSample!.leftElbowAngle, closeTo(90, 1e-9));
+    expect(result.bicepCurlSample!.rightElbowAngle, closeTo(90, 1e-9));
+  });
+
+  test('curl placement requires both complete arms', () {
+    final ready = evaluateBicepCurlPlacement(
+      MappedPose({
+        for (final joint in const {
+          BodyJoint.leftShoulder,
+          BodyJoint.rightShoulder,
+          BodyJoint.leftElbow,
+          BodyJoint.rightElbow,
+          BodyJoint.leftWrist,
+          BodyJoint.rightWrist,
+          BodyJoint.leftHip,
+          BodyJoint.rightHip,
+        })
+          joint: const LandmarkSample(point: Point2(50, 50), confidence: 0.9),
+      }),
+      imageWidth: 100,
+      imageHeight: 100,
+    );
+
+    expect(ready.status, PlacementStatus.ready);
+    expect(
+      evaluateBicepCurlPlacement(
+        MappedPose(const {}),
+        imageWidth: 100,
+        imageHeight: 100,
+      ).status,
+      PlacementStatus.missingLandmarks,
+    );
+  });
 }
 
 MappedPose mappedLeftSide({double shoulderX = 50}) => MappedPose({
@@ -146,6 +184,39 @@ Pose poseWithLegs({
     },
   );
 }
+
+Pose poseWithArms() => Pose(
+  landmarks: {
+    PoseLandmarkType.leftShoulder: landmark(
+      PoseLandmarkType.leftShoulder,
+      0,
+      1,
+      0.9,
+    ),
+    PoseLandmarkType.leftElbow: landmark(PoseLandmarkType.leftElbow, 0, 0, 0.9),
+    PoseLandmarkType.leftWrist: landmark(PoseLandmarkType.leftWrist, 1, 0, 0.9),
+    PoseLandmarkType.rightShoulder: landmark(
+      PoseLandmarkType.rightShoulder,
+      2,
+      1,
+      0.9,
+    ),
+    PoseLandmarkType.rightElbow: landmark(
+      PoseLandmarkType.rightElbow,
+      2,
+      0,
+      0.9,
+    ),
+    PoseLandmarkType.rightWrist: landmark(
+      PoseLandmarkType.rightWrist,
+      3,
+      0,
+      0.9,
+    ),
+    PoseLandmarkType.leftHip: landmark(PoseLandmarkType.leftHip, 0, 3, 0.9),
+    PoseLandmarkType.rightHip: landmark(PoseLandmarkType.rightHip, 2, 3, 0.9),
+  },
+);
 
 PoseLandmark landmark(
   PoseLandmarkType type,

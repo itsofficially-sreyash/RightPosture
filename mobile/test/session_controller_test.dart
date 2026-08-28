@@ -85,6 +85,31 @@ void main() {
     expect(state.countdownValue, 3);
   });
 
+  test('one noisy placement frame does not cancel countdown', () {
+    controller.prepareSession();
+    const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
+    for (var i = 0; i < 3; i++) {
+      controller.acceptPreparationResult(ready);
+    }
+    const lost = PlacementResult(
+      PlacementStatus.missingLandmarks,
+      'Step into frame',
+    );
+
+    controller.acceptPreparationResult(lost);
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.countdown,
+    );
+
+    controller.acceptPreparationResult(lost);
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.preparing,
+    );
+    expect(container.read(sessionControllerProvider).countdownValue, isNull);
+  });
+
   test('moves through calibration, tracking, and completion', () {
     controller.startTracking();
     completeRep(controller, 100);
@@ -272,6 +297,43 @@ void main() {
       RepStatus.good,
     );
   });
+
+  test('bicep curl runs through calibration and evaluated rep', () {
+    controller.prepareSession(exercise: ExerciseId.bicepCurl);
+    controller.startTracking();
+    for (var rep = 0; rep < 4; rep++) {
+      repeatCurl(controller, 165, 165);
+      repeatCurl(controller, 70, 75);
+      repeatCurl(controller, 165, 165);
+    }
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.selectedExercise, ExerciseId.bicepCurl);
+    expect(state.reps, hasLength(4));
+    expect(
+      state.reps.take(3).map((rep) => rep.status),
+      everyElement(RepStatus.calibrating),
+    );
+    expect(state.reps.last.status, RepStatus.good);
+
+    controller.endSession();
+    expect(container.read(sessionControllerProvider).summary!.totalReps, 4);
+  });
+}
+
+void repeatCurl(SessionController controller, double left, double right) {
+  for (var i = 0; i < 3; i++) {
+    controller.acceptBicepCurlSample(
+      BicepCurlFrameSample(
+        leftElbowAngle: left,
+        rightElbowAngle: right,
+        leftConfidence: 0.9,
+        rightConfidence: 0.9,
+        torsoVerticalPosition: 1,
+        torsoConfidence: 0.9,
+      ),
+    );
+  }
 }
 
 void completeRep(SessionController controller, double bottomAngle) {

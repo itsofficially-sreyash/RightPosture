@@ -1,4 +1,5 @@
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+import 'dart:math' as math;
 import 'domain/joint_angle.dart';
 import 'domain/exercise.dart';
 
@@ -41,16 +42,81 @@ class SquatFrameSample {
   final double confidence;
 }
 
+class BicepCurlFrameSample {
+  const BicepCurlFrameSample({
+    required this.leftElbowAngle,
+    required this.rightElbowAngle,
+    required this.leftConfidence,
+    required this.rightConfidence,
+    required this.torsoVerticalPosition,
+    required this.torsoConfidence,
+  });
+
+  final double leftElbowAngle;
+  final double rightElbowAngle;
+  final double leftConfidence;
+  final double rightConfidence;
+  final double torsoVerticalPosition;
+  final double torsoConfidence;
+}
+
 class PoseMappingResult {
   PoseMappingResult({
     required List<MappedPose> poses,
     this.squatSample,
     this.squatCandidate,
+    this.bicepCurlSample,
   }) : poses = List.unmodifiable(poses);
 
   final List<MappedPose> poses;
   final SquatFrameSample? squatSample;
   final SquatFrameSample? squatCandidate;
+  final BicepCurlFrameSample? bicepCurlSample;
+}
+
+PlacementResult evaluateBicepCurlPlacement(
+  MappedPose? pose, {
+  required double imageWidth,
+  required double imageHeight,
+  double minimumConfidence = 0.6,
+  double edgeMarginRatio = 0.05,
+}) {
+  if (pose == null || imageWidth <= 0 || imageHeight <= 0) {
+    return const PlacementResult(
+      PlacementStatus.missingLandmarks,
+      'Step into frame',
+    );
+  }
+  const joints = {
+    BodyJoint.leftShoulder,
+    BodyJoint.rightShoulder,
+    BodyJoint.leftElbow,
+    BodyJoint.rightElbow,
+    BodyJoint.leftWrist,
+    BodyJoint.rightWrist,
+    BodyJoint.leftHip,
+    BodyJoint.rightHip,
+  };
+  if (!joints.every(
+    (joint) => (pose.landmarks[joint]?.confidence ?? 0) >= minimumConfidence,
+  )) {
+    return const PlacementResult(
+      PlacementStatus.missingLandmarks,
+      'Show both shoulders, elbows, wrists, and hips',
+    );
+  }
+  final xMargin = imageWidth * edgeMarginRatio;
+  final yMargin = imageHeight * edgeMarginRatio;
+  if (joints.any((joint) {
+    final point = pose.landmarks[joint]!.point;
+    return point.x < xMargin ||
+        point.x > imageWidth - xMargin ||
+        point.y < yMargin ||
+        point.y > imageHeight - yMargin;
+  })) {
+    return const PlacementResult(PlacementStatus.nearEdge, 'Move farther back');
+  }
+  return const PlacementResult(PlacementStatus.ready, 'Position ready');
 }
 
 PlacementResult evaluateSquatPlacement(
@@ -108,13 +174,98 @@ PoseMappingResult mapPoses(List<Pose> poses, {double minimumConfidence = 0.6}) {
   if (poses.isEmpty) return PoseMappingResult(poses: const []);
   final mapped = poses.map(_mapOverlayLandmarks).toList(growable: false);
   final candidate = _bestSquatSample(poses.first);
+  final curl = _bicepCurlSample(poses.first, minimumConfidence);
   return PoseMappingResult(
     poses: mapped,
     squatSample: candidate != null && candidate.confidence >= minimumConfidence
         ? candidate
         : null,
     squatCandidate: candidate,
+    bicepCurlSample: curl,
   );
+}
+
+BicepCurlFrameSample? _bicepCurlSample(Pose pose, double minimumConfidence) {
+  final left = _armSample(
+    pose,
+    shoulder: PoseLandmarkType.leftShoulder,
+    elbow: PoseLandmarkType.leftElbow,
+    wrist: PoseLandmarkType.leftWrist,
+  );
+  final right = _armSample(
+    pose,
+    shoulder: PoseLandmarkType.rightShoulder,
+    elbow: PoseLandmarkType.rightElbow,
+    wrist: PoseLandmarkType.rightWrist,
+  );
+  if (left == null ||
+      right == null ||
+      left.$2 < minimumConfidence ||
+      right.$2 < minimumConfidence) {
+    return null;
+  }
+  final leftShoulder = pose.landmarks[PoseLandmarkType.leftShoulder];
+  final rightShoulder = pose.landmarks[PoseLandmarkType.rightShoulder];
+  final leftHip = pose.landmarks[PoseLandmarkType.leftHip];
+  final rightHip = pose.landmarks[PoseLandmarkType.rightHip];
+  if (leftShoulder == null ||
+      rightShoulder == null ||
+      leftHip == null ||
+      rightHip == null) {
+    return null;
+  }
+  final shoulderCenter = Point2(
+    (leftShoulder.x + rightShoulder.x) / 2,
+    (leftShoulder.y + rightShoulder.y) / 2,
+  );
+  final hipCenter = Point2(
+    (leftHip.x + rightHip.x) / 2,
+    (leftHip.y + rightHip.y) / 2,
+  );
+  final torsoX = hipCenter.x - shoulderCenter.x;
+  final torsoY = hipCenter.y - shoulderCenter.y;
+  final torsoLength = math.sqrt(torsoX * torsoX + torsoY * torsoY);
+  if (!torsoLength.isFinite || torsoLength == 0) return null;
+  final torsoConfidence = [
+    leftShoulder.likelihood,
+    rightShoulder.likelihood,
+    leftHip.likelihood,
+    rightHip.likelihood,
+  ].reduce((a, b) => a < b ? a : b);
+  if (torsoConfidence < minimumConfidence) return null;
+  return BicepCurlFrameSample(
+    leftElbowAngle: left.$1,
+    rightElbowAngle: right.$1,
+    leftConfidence: left.$2,
+    rightConfidence: right.$2,
+    torsoVerticalPosition: shoulderCenter.y / torsoLength,
+    torsoConfidence: torsoConfidence,
+  );
+}
+
+(double, double)? _armSample(
+  Pose pose, {
+  required PoseLandmarkType shoulder,
+  required PoseLandmarkType elbow,
+  required PoseLandmarkType wrist,
+}) {
+  final shoulderPoint = pose.landmarks[shoulder];
+  final elbowPoint = pose.landmarks[elbow];
+  final wristPoint = pose.landmarks[wrist];
+  if (shoulderPoint == null || elbowPoint == null || wristPoint == null) {
+    return null;
+  }
+  final confidence = [
+    shoulderPoint.likelihood,
+    elbowPoint.likelihood,
+    wristPoint.likelihood,
+  ].reduce((a, b) => a < b ? a : b);
+  final angle = jointAngle(
+    Point2(shoulderPoint.x, shoulderPoint.y),
+    Point2(elbowPoint.x, elbowPoint.y),
+    Point2(wristPoint.x, wristPoint.y),
+  );
+  return angle == null ? null : (angle, confidence);
 }
 
 MappedPose _mapOverlayLandmarks(Pose pose) {

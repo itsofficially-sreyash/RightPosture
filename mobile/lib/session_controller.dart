@@ -51,31 +51,35 @@ final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 
 class SessionController extends Notifier<SessionState> {
-  late SquatRepDetector _repDetector;
+  late RepDetector _repDetector;
   late RepEvaluator _evaluator;
   late AngleSmoother _kneeAngleSmoother;
+  late AngleSmoother _leftElbowSmoother;
+  late AngleSmoother _rightElbowSmoother;
   final ExerciseRegistry _registry = const ExerciseRegistry();
   String? _trackedSide;
   Timer? _countdownTimer;
   int _stablePlacementFrames = 0;
+  int _countdownLossFrames = 0;
 
   @override
   SessionState build() {
     ref.onDispose(_cancelCountdown);
-    _resetEngines();
+    _resetEngines(ExerciseId.squat);
     return SessionState.idle();
   }
 
   void startSession() => prepareSession();
 
-  void prepareSession() {
+  void prepareSession({ExerciseId exercise = ExerciseId.squat}) {
     _cancelCountdown();
-    _resetEngines();
+    _resetEngines(exercise);
     _stablePlacementFrames = 0;
+    _countdownLossFrames = 0;
     state = SessionState(
       phase: SessionPhase.preparing,
-      selectedExercise: ExerciseId.squat,
-      placementGuidance: squatExerciseProfile.setupInstruction,
+      selectedExercise: exercise,
+      placementGuidance: _registry.profileFor(exercise).setupInstruction,
     );
   }
 
@@ -85,7 +89,12 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     if (!result.isReady) {
+      if (state.phase == SessionPhase.countdown) {
+        _countdownLossFrames++;
+        if (_countdownLossFrames < 2) return;
+      }
       _stablePlacementFrames = 0;
+      _countdownLossFrames = 0;
       _cancelCountdown();
       state = SessionState(
         phase: SessionPhase.preparing,
@@ -94,6 +103,7 @@ class SessionController extends Notifier<SessionState> {
       );
       return;
     }
+    _countdownLossFrames = 0;
     if (state.phase == SessionPhase.countdown) return;
     _stablePlacementFrames++;
     final stable = _stablePlacementFrames >= 3;
@@ -144,7 +154,7 @@ class SessionController extends Notifier<SessionState> {
 
   void startTracking() {
     _cancelCountdown();
-    _resetEngines();
+    _resetEngines(state.selectedExercise);
     state = SessionState(
       phase: SessionPhase.tracking,
       selectedExercise: state.selectedExercise,
@@ -162,7 +172,8 @@ class SessionController extends Notifier<SessionState> {
     if (sample.side != _trackedSide) return;
     final smoothedAngle = _kneeAngleSmoother.add(sample.kneeAngle);
     if (smoothedAngle == null) return;
-    final completion = _repDetector.addFrame(
+    final detector = _repDetector as SquatRepDetector;
+    final completion = detector.addFrame(
       MovementFrame(
         timestamp: DateTime.now(),
         values: {MovementMetric.kneeAngle: smoothedAngle},
@@ -174,7 +185,7 @@ class SessionController extends Notifier<SessionState> {
         },
       ),
     );
-    final coaching = _repDetector.coachingFor(smoothedAngle);
+    final coaching = detector.coachingFor(smoothedAngle);
     if (completion == null) {
       if (coaching == state.coaching) return;
       state = SessionState(
@@ -202,6 +213,52 @@ class SessionController extends Notifier<SessionState> {
       baseline: _evaluator.baseline,
       latestFeedback: rep,
       coaching: coaching,
+    );
+  }
+
+  void acceptBicepCurlSample(BicepCurlFrameSample sample) {
+    if (state.phase != SessionPhase.tracking ||
+        state.selectedExercise != ExerciseId.bicepCurl ||
+        state.error != null) {
+      return;
+    }
+    final left = _leftElbowSmoother.add(sample.leftElbowAngle);
+    final right = _rightElbowSmoother.add(sample.rightElbowAngle);
+    if (left == null || right == null) return;
+    final completion = _repDetector.addFrame(
+      MovementFrame(
+        timestamp: DateTime.now(),
+        values: {
+          MovementMetric.leftElbowAngle: left,
+          MovementMetric.rightElbowAngle: right,
+          MovementMetric.torsoVerticalPosition: sample.torsoVerticalPosition,
+        },
+        confidence: {
+          MovementMetric.leftElbowAngle: sample.leftConfidence,
+          MovementMetric.rightElbowAngle: sample.rightConfidence,
+          MovementMetric.torsoVerticalPosition: sample.torsoConfidence,
+        },
+        trackedSide: TrackedSide.bilateral,
+      ),
+    );
+    if (completion == null) return;
+    final rep = _evaluator.evaluate(
+      {
+        'left': completion.minimumValues[MovementMetric.leftElbowAngle]!,
+        'right': completion.minimumValues[MovementMetric.rightElbowAngle]!,
+      },
+      confidenceOk: true,
+      metrics: completion.metrics,
+    );
+    if (rep == null) return;
+    _leftElbowSmoother.reset();
+    _rightElbowSmoother.reset();
+    state = SessionState(
+      phase: SessionPhase.tracking,
+      selectedExercise: state.selectedExercise,
+      reps: [...state.reps, rep],
+      baseline: _evaluator.baseline,
+      latestFeedback: rep,
     );
   }
 
@@ -243,13 +300,14 @@ class SessionController extends Notifier<SessionState> {
 
   void reset() {
     _cancelCountdown();
-    _resetEngines();
+    _resetEngines(ExerciseId.squat);
     state = SessionState.idle();
   }
 
-  void trackingInterrupted() {
+  void trackingInterrupted({bool immediate = true}) {
     if (state.phase == SessionPhase.preparing ||
         state.phase == SessionPhase.countdown) {
+      if (immediate) _countdownLossFrames = 1;
       acceptPreparationResult(
         const PlacementResult(
           PlacementStatus.missingLandmarks,
@@ -268,16 +326,29 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
-  void _resetEngines() {
-    _repDetector = _registry.detectorFor(ExerciseId.squat) as SquatRepDetector;
-    _evaluator = RepEvaluator(squatExerciseThresholds());
+  void _resetEngines(ExerciseId exercise) {
+    _repDetector = _registry.detectorFor(exercise);
+    _evaluator = exercise == ExerciseId.bicepCurl
+        ? RepEvaluator(
+            bicepCurlExerciseThresholds(),
+            exercise: ExerciseId.bicepCurl,
+            metrics: const {
+              'left': MovementMetric.leftElbowAngle,
+              'right': MovementMetric.rightElbowAngle,
+            },
+          )
+        : RepEvaluator(squatExerciseThresholds());
     _kneeAngleSmoother = AngleSmoother();
+    _leftElbowSmoother = AngleSmoother();
+    _rightElbowSmoother = AngleSmoother();
     _trackedSide = null;
   }
 
   void _resetTrackingInput() {
     _repDetector.reset();
     _kneeAngleSmoother.reset();
+    _leftElbowSmoother.reset();
+    _rightElbowSmoother.reset();
     _trackedSide = null;
   }
 
@@ -290,6 +361,14 @@ class SessionController extends Notifier<SessionState> {
 ExerciseThresholds squatExerciseThresholds() => ExerciseThresholds(
   joints: const {
     'knee': JointThreshold(minimum: 0, maximum: 140, deviationThreshold: 20),
+  },
+  persistenceCount: 3,
+);
+
+ExerciseThresholds bicepCurlExerciseThresholds() => ExerciseThresholds(
+  joints: const {
+    'left': JointThreshold(minimum: 0, maximum: 130, deviationThreshold: 20),
+    'right': JointThreshold(minimum: 0, maximum: 130, deviationThreshold: 20),
   },
   persistenceCount: 3,
 );

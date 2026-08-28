@@ -16,6 +16,7 @@ enum MovementMetric {
   leftElbowAngle,
   rightElbowAngle,
   torsoLean,
+  torsoVerticalPosition,
   armElevation,
   stanceWidth,
   wristHeightSymmetry,
@@ -151,4 +152,31 @@ final squatExerciseProfile = ExerciseProfile(
   },
   setupInstruction:
       'Step back until shoulders, hips, knees, and ankles are visible. Face sideways.',
+);
+
+final bicepCurlExerciseProfile = ExerciseProfile(
+  id: ExerciseId.bicepCurl,
+  displayName: 'Bicep Curl',
+  recommendedView: CameraView.front,
+  requiredLandmarks: const {
+    BodyJoint.leftShoulder,
+    BodyJoint.rightShoulder,
+    BodyJoint.leftElbow,
+    BodyJoint.rightElbow,
+    BodyJoint.leftWrist,
+    BodyJoint.rightWrist,
+    BodyJoint.leftHip,
+    BodyJoint.rightHip,
+  },
+  phaseMetrics: const {
+    MovementMetric.leftElbowAngle,
+    MovementMetric.rightElbowAngle,
+    MovementMetric.torsoVerticalPosition,
+  },
+  thresholds: const {
+    MovementMetric.leftElbowAngle: MetricThreshold(minimum: 0, maximum: 130),
+    MovementMetric.rightElbowAngle: MetricThreshold(minimum: 0, maximum: 130),
+  },
+  setupInstruction:
+      'Face the camera with shoulders, elbows, wrists, and hips visible. Start with both arms lowered.',
 );
