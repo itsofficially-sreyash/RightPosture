@@ -17,9 +17,8 @@ Turn spike findings into smallest reusable production pipeline.
 
 - Unit-test coordinate conversion and selected-landmark mapping where possible.
 - Widget smoke test for each pipeline state using fake app-owned samples, not platform camera mocks.
-- Re-run 2-minute iQOO test after extraction.
+- User-owned hardware check: run 2-minute Android/iQOO test after extraction when a device is available.
 
 ## Exit gate
 
-Production pipeline matches spike performance and has no product screen coupling.
-
+Analyzer, automated tests, and Android build pass. Production pipeline has no product screen coupling. Hardware performance remains explicitly unverified until the user reports results.

@@ -45,12 +45,19 @@ Known cost of this flip: no documented Snapdragon NPU delegate hook — do NOT c
 Known caveat carried over: platform-channel-based Flutter pose detection has a documented latency tax in at least one comparable implementation — budget for "real-time" meaning smooth-enough, not zero-latency (already correctly avoided that language, see project.md).
 Condition: still NOT yet verified on the actual iQOO loaner hardware specifically — this decision is provisional until execution/01_verify_hardware.md passes. No fallback package currently defined for this choice (previously ML Kit WAS the fallback; now nothing is). If ML Kit fails hardware verification, this needs a new decision, not an automatic fallback.
 
-## D4 — Exercises in scope: Squat + Lunge (locked, default — override if wrong)
+## D4 — Exercises in scope: Squat + Lunge (superseded by D14)
 Chosen because both are sagittal/frontal-plane reliable for monocular 2D pose (per prd.md open risks — no depth judgment needed), and both map cleanly to a standing→bottom→standing rep state machine (data_model.md). Not confirmed by user explicitly — this is the lowest-risk default, flag now if a different exercise pair is wanted.
+
+## D14 — Six-exercise gated scope (locked)
+
+Squat, Reverse Lunge, Bicep Curl, Shoulder Press, Lateral Raise, and Jumping Jack. Ship in `../iterations.md` order; hide any exercise until its vertical-slice and device gates pass.
+
+## D15 — Local summary analytics (locked)
+
+Persist bounded versioned summary JSON with installed `shared_preferences`. Never store images, frames, landmark streams, or raw pose samples. Raw movement metrics compare only within one exercise.
 
 ## D5 — "Send to physio" / compliance report: MOCKED, not real
 No clinic integration exists or will exist by demo time. Any "share with physio" feature is a local PDF/export mock. Must be stated as such in the pitch — do not imply a real integration. Judges score self-reported device claims at 0%; only measured device data (25%) and jury eval count, but a false claim caught live wrecks end-product-quality trust (30%).
 
 ## D6 — Office Kit plan: screen mirroring during pitch (locked, default — override if wrong)
 No feature built for Office Kit. Instead: mirror the live phone demo to a laptop screen for judges via Office Kit during the 3-5 min pitch (workflow.md Option 1). Zero build cost, satisfies "measured usage" of the phone-to-laptop bridge without diverting build time from P0/P1 features. If Office Kit's 10% needs a stronger showing than passive mirroring, that's a real scope add — flag it, not assumed here.
-

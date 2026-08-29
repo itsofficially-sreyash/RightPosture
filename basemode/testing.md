@@ -1,24 +1,33 @@
-# testing.md
-Hackathon-scoped testing — the goal is "doesn't break live in front of judges," not production QA coverage. Prioritize accordingly.
-REVISED — modes merged (decision.md D8), so mode-switch tests removed; baseline/persistence algorithm tests added (decision.md D11).
+# Testing
 
-## Must-test before Evaluation Round 1
-- Camera + pose overlay actually runs on the iQOO loaner (not just a dev's personal phone/emulator) — this is the single most important test in the whole project, per decision.md D3 and workflow.md.
-- Rep counting is correct for a scripted, rehearsed set (not required to generalize — see prd.md success criteria).
-- Baseline establishes correctly from the first 2-3 valid reps, and a rep's status (good/warning/degraded) is evaluated only after the baseline exists — verify the "calibrating" period actually withholds verdicts (screens.md, execution/04).
-- A deliberately-degraded stretch of reps (not just one bad rep) correctly transitions from warning → degraded once the persistence count is met (decision.md D11) — test the actual persistence logic, not just a single-rep flag.
-- A single noisy/bad frame (e.g., brief occlusion) does NOT trigger a false degraded flag on its own — this is the entire point of the persistence requirement, verify it actually holds under real noise, not just clean test conditions.
-- App doesn't crash on: no camera permission granted, poor lighting, person exits frame mid-set. Verify it doesn't crash, not that it "handles it well" (error_handling.md).
+Each iteration owns its smallest deterministic checks. Full suite remains required at release hardening.
 
-## Should-test if time allows
-- Angle thresholds hold up across more than one team member's body/height (not just the person who tuned them).
-- Venue lighting conditions, once known (unresolved per prd.md open risks).
+## Domain gates
 
-## Explicitly not testing (out of scope for hackathon)
-- Automated unit/widget test suite.
-- Cross-device testing beyond the iQOO loaner.
-- Load/performance testing beyond "does it run smoothly for one live demo."
-- Mode-switch testing — removed, no modes exist anymore (decision.md D8).
+- Confidence, smoothing reset, side lock, partial attempts, detector phase boundaries.
+- Baseline/persistence, structured issue priority, missing metrics, summary scoring.
+- One normal and noisy/partial/tracking-loss sequence per exercise.
 
-## Demo rehearsal (not optional)
-Run the full scripted demo (exercise select → live session with a long-enough set showing calibration then genuine degradation → summary) start to finish, timed, at least twice before Evaluation Round 1, and once before the final Sunday demo. Per prd.md's revised success criteria, this set needs to be long enough (6-8+ reps) to show real persistence-based degradation — don't rehearse a short set that can't actually demonstrate the claim.
+## State and storage gates
+
+- Exactly one immutable snapshot per completed set/workout.
+- Correct next-set/change-exercise/reset behavior.
+- Versioned JSON round-trip, bounded retention, corrupt/unknown-version fallback.
+- No persisted frame, image, landmark stream, or raw pose sample fields.
+
+## Analytics gates
+
+- Grouping by exercise and local day/week.
+- Missing values remain gaps.
+- Trends require comparable same-exercise data.
+- Improvement/record/feedback claims link to supporting sessions.
+- One session, ties, and unavailable data use neutral output.
+
+## Widget/accessibility gates
+
+- Exercise cards, preparation/countdown, live HUD, summaries, history filters, calendar, charts, and journal entry.
+- 320 px width, 200% text scale, semantics, reduced motion, and color-independent status.
+
+## Physical device
+
+Three scripted sets per exposed exercise plus one degraded set. Record device, camera, orientation, distance, lighting, expected/actual count, latency, and final thresholds. Hardware gate cannot be replaced by automated tests.

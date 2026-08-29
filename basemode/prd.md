@@ -1,36 +1,53 @@
-# prd.md
-REVISED — modes merged (decision.md D8), "injury risk" killed (decision.md D9), terminology cleaned (decision.md D10), algorithm upgraded (decision.md D11).
+# Product requirements
+
+`rightposture_merged_spec.md` is the final behavior specification. `iterations.md` is the canonical build order.
 
 ## Problem
-People doing exercise sets don't get real-time feedback on form, and nobody flags the point mid-set where form starts degrading — not because the rep suddenly failed, but because it drifted gradually (fatigue, loss of attention). Existing apps either count reps (no correctness signal) or check a single rep in isolation (no trend signal). SOURCE: this problem framing is our own claim, not externally validated market research — say so if asked.
+
+People exercising alone can see a rep count but often cannot tell whether visible movement range, tempo, symmetry, or consistency changed during a set. RightPosture provides on-device, evidence-based coaching from 2D pose landmarks. It does not diagnose injury or replace a coach or clinician.
 
 ## Users
-Primary: gym/home-workout user doing bodyweight sets (squats, lunges) who wants form feedback and to know when their form is breaking down. Rehab framing (prior consideration) dropped — see decision.md, it introduces clinical-credibility questions (which injury, whose protocol, whose thresholds) the MVP can't answer. Can be mentioned as a future direction in the pitch, not built.
 
-## Core loop (this is the entire MVP — do not add loops)
-1. User selects exercise from a short fixed list.
-2. User starts camera, does a set.
-3. Live: skeleton overlay, rep counter, per-rep status (good/warning/degraded) as each rep completes. First 2-3 reps establish a baseline silently — shown as "calibrating," not evaluated against a verdict yet (data_model.md, execution/04).
-4. End of set: summary — reps, Form Score %, rep-by-rep checklist, "form degradation detected from Rep N" + responsible joint if applicable.
-5. Optional stretch: export summary as shareable text/PDF (mocked, decision.md D5).
+Primary user: a gym or home-workout user performing a supported standing exercise in view of one phone camera.
 
-## Success criteria for the demo
-- Live camera + skeleton overlay renders on the iQOO loaner with no crash, in front of judges.
-- Rep count is correct for a scripted, rehearsed set.
-- The demo set is LONG ENOUGH (6-8+ reps) to show a genuine baseline-then-drift pattern — a short 2-3 rep set can't demonstrate degradation credibly, since persistence-based detection (decision.md D11) needs real reps to persist across. This replaces the earlier "under 90 seconds" framing where relevant — a slightly longer demo set is a required tradeoff for a credible degradation claim, not a nice-to-have.
-- At least one deliberately-degraded stretch of reps late in the set gets correctly flagged, live.
+## Supported exercises
 
-## Out of scope (explicit)
-- User accounts / auth / persistence across sessions.
-- Exercises beyond the 1-2 locked in decision.md D4.
-- Real physio/clinic integration.
-- Calorie estimation.
-- Multi-person-in-frame handling.
-- Two separate user-facing modes — merged, decision.md D8.
-- Any claim of diagnosing or predicting injury — killed, decision.md D9.
+Squat, Reverse Lunge, Bicep Curl, Shoulder Press, Lateral Raise, and Jumping Jack. Availability is gated per exercise; unfinished exercises stay hidden.
 
-## Open risks (unresolved, need answers before build)
-- Monocular camera can't judge depth reliably — exercise choice respects this (decision.md D4).
-- Occlusion, venue lighting untested.
-- `google_mlkit_pose_detection` smoothness/latency on iQOO loaner unverified until execution/01 passes — no fallback package defined (decision.md D3).
-- Baseline+persistence algorithm (decision.md D11) is untested until execution/04 — the concept is sound, the exact threshold/persistence-count values are unknown until tuned on a real person.
+## Core loop
+
+1. Select an available exercise.
+2. Complete first-visit guidance when applicable.
+3. Follow camera placement guidance and countdown.
+4. Perform a planned set while the app counts and evaluates reps.
+5. Receive concise live feedback and one optional midpoint spoken cue.
+6. Review set summary, timeline, scores, and optional spoken summary.
+7. Start another set, change exercise, or finish the in-memory workout.
+8. Review local exercise history, journal entries, and evidence-based trends after summary persistence ships.
+
+## Success criteria
+
+- Every visible exercise counts three scripted device sets correctly.
+- Low-confidence data, jitter, or brief occlusion cannot silently create a good rep.
+- Partial deliberate reps are evaluated for range instead of disappearing.
+- Feedback uses only measured metrics, configured thresholds, and valid same-exercise history.
+- Calibration and unavailable metrics never lower Form Score.
+- Camera frames never leave the device or enter workout history.
+- UI remains usable at 320 px width and 200% text scaling.
+
+## Out of scope
+
+- Injury diagnosis, prediction, treatment, or clinical claims.
+- Accounts, cloud sync, backend, cross-device history, or retained camera/landmark data.
+- Multi-person tracking.
+- Direct comparison of raw metrics across different exercises.
+- Push-ups, planks, deadlifts, floor exercises, calorie estimates, or trainer/clinic integration.
+
+## Main risks
+
+- 2D monocular pose cannot measure depth reliably.
+- Landmark quality varies with lighting, distance, clothing, and occlusion.
+- Thresholds require target-device tuning across multiple people.
+- TTS and UI work must never block inference.
+
+Mitigation and release gates live in `iterations.md`, `testing.md`, and `error_handling.md`.

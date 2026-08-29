@@ -12,13 +12,16 @@
   - No fallback package currently defined if this fails hardware verification — flag immediately if execution/01_verify_hardware.md fails, this needs a fresh decision.
 
 ## Local storage
-- In-memory only for MVP (session state via Riverpod). No persistence needed per prd.md scope — do not add a local DB unless a P1/P2 feature explicitly requires it.
+- Live session/workout state stays in Riverpod memory.
+- `shared_preferences` stores settings, guided-demo flags, and bounded versioned summary JSON for journals/analytics.
+- No raw pose/image data. No DB unless measured history size or query performance requires one.
 
 ## Backend
 - None planned for MVP. If Office Kit scoring requires a laptop-side companion view (see workflow.md, unresolved), decide the minimal version then — do not pre-build a backend speculatively.
 
 ## Build/tooling
 - Standard Flutter toolchain (`flutter pub get`, `flutter run`).
+- Native Android `FLAG_KEEP_SCREEN_ON`; no wakelock package.
 - Test `google_mlkit_pose_detection` build + camera permission flow on the iQOO loaner FIRST in Green Light hours — this is the single highest-risk unknown in the whole stack (see decision.md D3, prd.md open risks).
 
 ## Explicitly not using

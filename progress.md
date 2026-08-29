@@ -1,12 +1,12 @@
 # Right Posture — Progress
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 
 This file is the first stop for every development session. Read it before opening the wider project. Update it after each completed iteration, important decision, or newly discovered blocker.
 
 ## Current phase
 
-Iteration 08A software complete. Live directional coaching, optional persisted TTS/haptics, conservative degradation thresholds, and display-only skeleton smoothing are implemented; hardware validation remains pending.
+Expansion Iteration 14 is software complete. Finished workouts now persist as bounded, versioned local summary evidence. Iterations 10–11 remain deferred.
 
 ## Completed
 
@@ -33,11 +33,11 @@ Iteration 08A software complete. Live directional coaching, optional persisted T
 ## Approved scope snapshot
 
 - Target: Android/iQOO hackathon demo; iOS/desktop polish is out of scope.
-- Core flow: Exercise Select → Live Session → Session Summary.
+- Core flow: Exercise Select → Guided Demo/Setup → Live Session → Set/Workout Summary → local History/Analytics.
 - Onboarding is P1 and cuttable.
-- Squat is the first exercise. Lunge is P2, added only after squat works.
+- Exercises: Squat, Bicep Curl, Lateral Raise, Shoulder Press, Reverse Lunge, Jumping Jack; each remains hidden until its full gate passes.
 - One on-device pipeline: camera → ML Kit landmarks → joint angles → rep state machine → baseline/persistence evaluation → summary.
-- No backend, accounts, cross-session persistence, clinical claims, or real physio integration.
+- Local bounded summary persistence supports journals/analytics. No backend, accounts, cloud sync, retained pose/image data, clinical claims, or real physio integration.
 - Office Kit use is screen mirroring, not an app subsystem.
 
 ## Decisions needed before implementation
@@ -47,6 +47,23 @@ Iteration 08A software complete. Live directional coaching, optional persisted T
 - [x] Squat-only initial delivery; lunge remains stretch scope.
 - [x] Absolute-range violation produces immediate `degraded` verdict.
 - [x] First 3 valid reps calibrate baseline and are excluded from Form Score.
+- [x] Expansion scope and 21 low-context iteration files approved on 2026-08-28.
+- [x] Analytics uses versioned summary JSON through installed `shared_preferences`; no DB until measured need.
+- [x] Expansion Iteration 00 regression lock completed on 2026-08-28.
+- [x] Expansion Iteration 01 reliable-frame software gate completed on 2026-08-28.
+- [x] Expansion Iteration 02 partial-attempt software gate completed on 2026-08-28.
+- [x] Expansion Iteration 03 shared-contract software gate completed on 2026-08-28.
+- [x] Android app-wide keep-awake enabled with native window flag; no dependency added.
+- [x] Expansion Iteration 04 preparation/countdown software gate completed on 2026-08-28.
+- [x] Expansion Iteration 05 structured-feedback software gate completed on 2026-08-28.
+- [x] Expansion Iteration 06 rep-metrics software gate completed on 2026-08-28.
+- [x] Expansion Iteration 07 bicep-curl software gate completed on 2026-08-28.
+- [x] Expansion Iteration 08 lateral-raise software gate completed on 2026-08-28.
+- [x] Expansion Iteration 09 shoulder-press software gate completed on 2026-08-28.
+- [x] Expansion Iteration 12 detailed-set-summary gate completed on 2026-08-28.
+- [x] Expansion Iteration 13 workout-comparison gate completed on 2026-08-28.
+- [x] Expansion Iteration 14 local-history foundation completed on 2026-08-28.
+- [ ] Expansion Iterations 10–11 deferred by user; return after post-summary/analytics work.
 - [ ] Replace placeholder Android ID `com.example.right_posture` before release; no organization/reverse-domain value is available yet.
 
 ## Known risks
@@ -58,6 +75,10 @@ Iteration 08A software complete. Live directional coaching, optional persisted T
 - `.codex/agents/` contains 43 specialist agent configs. All were cataloged; relevant specialists are used at development/test gates. Unrelated roles are not given invented work.
 
 ## Execution index
+
+Expansion work uses [`basemode/iterations.md`](basemode/iterations.md) and its 21 standalone files. Current software checkpoint: [`basemode/iterations/14_local_history.md`](basemode/iterations/14_local_history.md).
+
+Legacy implementation plans:
 
 1. [`execution/01_project_baseline.md`](execution/01_project_baseline.md)
 2. [`execution/02_device_pose_spike.md`](execution/02_device_pose_spike.md)
@@ -96,6 +117,191 @@ Iteration 08A software complete. Live directional coaching, optional persisted T
 | 08 Resilience/polish | Software complete | Analyze clean; 47 tests pass; debug APK built | Hardware resilience checks pending |
 | 08A Live coaching | Software complete | Analyze clean; 65 tests pass; debug APK built | TTS/haptics/latency hardware checks pending |
 | 09 Demo release | Pending | — | Rehearsal and release artifact |
+| Expansion 00 Squat regression lock | Complete | Analyze clean; 67 tests pass | Two focused session regression tests added; no production changes |
+| Expansion 01 Reliable squat frames | Software complete | Analyze clean; 72 tests pass | Hardware responsiveness and side visibility pending |
+| Expansion 02 Partial squat attempts | Software complete | Analyze clean; 75 tests pass | Attempt thresholds need device tuning |
+| Expansion 03 Shared exercise contracts | Software complete | Analyze clean; 78 tests pass; debug APK built | Only squat registry entry enabled |
+| Expansion 04 Preparation/countdown | Software complete | Analyze clean; 82 tests pass | Three-frame stability needs device timing check |
+| Expansion 05 Structured feedback | Software complete | Analyze clean; 87 tests pass | Copy and thresholds need device validation |
+| Expansion 06 Rep metrics | Software complete | Analyze clean; 91 tests pass | Tempo accuracy needs device validation |
+| Expansion 07 Bicep curl | Software complete, device-gated | Analyze clean; 108 tests pass; debug APK built | Adaptive skeleton stability/latency and three curl sets required |
+| Expansion 08 Lateral raise | Software complete, device-gated | Analyze clean; 117 tests pass; debug APK built | Three target-device sets required; release card remains hidden |
+| Expansion 09 Shoulder press | Software complete, device-gated | Analyze clean; 124 tests pass; debug APK built | Three target-device sets required; release card remains hidden |
+| Expansion 10–11 Exercises | Deferred | — | Return after summary/analytics work |
+| Expansion 12 Detailed set summary | Software complete | Analyze clean; 126 tests pass; debug APK built | Lightweight widgets; no chart dependency |
+| Expansion 13 Workout comparison | Software complete | Analyze clean; 130 tests pass; debug APK built | Memory-only; persistence begins in Iteration 14 |
+| Expansion 14 Local history | Software complete | Analyze clean; 136 tests pass; debug APK built | Version 1 JSON; newest 100 workouts retained |
+
+## Expansion Iteration 00 record — 2026-08-28
+
+- Added a five-rep scripted squat regression proving one ordered result per completed movement and calibration status on first three reps.
+- Added a low-confidence mid-attempt regression proving tracking loss cannot finish a rep.
+- Existing detector/evaluator tests already cover boundary noise, partial movement, calibration median, persistence, summary scoring, and missing confidence.
+- Production code unchanged.
+- `dart format lib test`: passed, 0 files changed.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 67 tests passed.
+- Hardware behavior remains unverified; Iteration 00 did not tune thresholds or claim device results.
+- Next: `basemode/iterations/01_reliable_frames.md`.
+
+## Expansion Iteration 01 record — 2026-08-28
+
+- Added dependency-free rolling median smoothing with a three-frame window.
+- Metric confidence remains the minimum confidence of hip, knee, and ankle; explicit regression added.
+- Session boundary rejects confidence below `0.6`, resets active detector/smoother/side state, and preserves completed reps/baseline.
+- Selected side locks through the active rep and unlocks only after completion or tracking interruption.
+- Camera switch, lifecycle pause, no-person, low-confidence, and pipeline failure reset tracking input.
+- Smoothing resets after every rep and tracking/session/camera boundary, so values never cross boundaries.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 72 tests passed.
+- Hardware pending: perceived three-frame smoothing delay, side visibility under occlusion, rep accuracy, and thresholds.
+- Next: `basemode/iterations/02_partial_attempts.md`.
+
+## Expansion Iteration 02 record — 2026-08-28
+
+- Added permissive movement start at `10°` excursion and deliberate-attempt minimum at `25°`; both configurable demo thresholds.
+- Detector tracks standing angle, minimum knee angle, excursion, movement direction, and incomplete-attempt count.
+- A rep completes only after returning to standing with enough excursion.
+- Deliberate shallow squat reaches evaluator and receives `Next rep: go lower`; standing jitter and abandoned attempts do not increment reps.
+- Completion exposes start/minimum extrema; session evaluator consumes measured minimum knee angle.
+- Coaching remains direction-aware during shallow descent and return.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 75 tests passed.
+- Hardware pending: tune `10°`/`25°`, test slow/fast shallow reps, and verify no venue-noise false counts.
+- Next: `basemode/iterations/03_shared_contracts.md`.
+
+## Expansion Iteration 03 record — 2026-08-28
+
+- Added `ExerciseId`, `MovementMetric`, `MovementFrame`, `ExerciseProfile`, `RepCompletion`, `RepDetector`, camera-view, body-joint, and tracked-side contracts.
+- Added direct switch registry; only Squat resolves. Unfinished exercises throw and remain unavailable.
+- `SessionState.selectedExercise` now uses `ExerciseId`.
+- Squat receives smoothed value/confidence/side through `MovementFrame`; evaluator consumes generic completion extrema.
+- Existing squat adapter remains for focused tests; visible behavior unchanged.
+- Android `MainActivity` applies `FLAG_KEEP_SCREEN_ON` without a package.
+- First analyzer run hit a dev-SDK segmentation fault; immediate retry passed.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 78 tests passed.
+- `flutter build apk --debug`: passed; native Android change compiled.
+- Next: `basemode/iterations/04_preparation_countdown.md`.
+
+## Expansion Iteration 04 record — 2026-08-28
+
+- Added preparing and countdown session stages; Exercise Select now enters preparation instead of tracking.
+- Squat placement requires one confident shoulder/hip/knee/ankle side and rejects landmarks within a 5% image-edge margin.
+- Placement messages distinguish step into frame, show required joints, move farther back, and ready.
+- Three consecutive ready processed frames enable Start Set; starting runs cancellable 3-2-1 countdown.
+- Pose frames cannot reach detector/evaluator during preparation or countdown.
+- Pose loss, camera switch, lifecycle pause, Back/reset, and controller disposal cancel countdown/reset preparation.
+- Stable placement automatically starts the countdown; any pose loss requires a fresh stable lock and restarts at 3.
+- Added scrollable, token-based preparation HUD with semantics and compact 320 px/200% text test.
+- Flutter UI/responsive skill kept content constrained, scrollable, semantic, and free from orientation/device-type assumptions.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 82 tests passed.
+- Hardware pending: confirm three processed frames approximate one stable second at real inference rate and validate 5% edge margin.
+- Next: `basemode/iterations/05_structured_feedback.md`.
+
+## Expansion Iteration 05 record — 2026-08-28
+
+- Replaced evaluator-owned feedback strings with structured `RepIssue` evidence: exercise, metric, direction, measured value, optional baseline, and normalized severity.
+- Added deterministic issue priority and squat copy catalog with safe human-language fallback.
+- Live HUD, coaching cues, accessibility semantics, and summaries now derive text from structured issues; internal metric identifiers stay hidden.
+- Tracking interruption and pipeline failure clear stale feedback.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 87 tests passed.
+- Hardware pending: validate copy timing and evaluator thresholds during real squat sets.
+- Next: `basemode/iterations/06_rep_metrics.md`.
+
+## Expansion Iteration 06 record — 2026-08-28
+
+- Added immutable `RepMetrics` to shared completions and evaluated reps.
+- Squat records measured knee excursion, outward/return/total duration, and minimum completion confidence.
+- Missing bilateral timing remains `null`; no fabricated zero value.
+- Low-confidence shared frames reset the active detector, preventing gaps from inflating tempo.
+- Out-of-order timestamps clamp durations to zero, never negative.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 91 tests passed.
+- Hardware pending: validate real processed-frame timing and confidence interruptions.
+- Next: `basemode/iterations/07_bicep_curl.md`.
+
+## Expansion Iteration 07 record — 2026-08-28
+
+- Added front-view bilateral shoulder-elbow-wrist mapping and placement guidance.
+- Added simultaneous curl detector requiring extension-curl-extension and both-arm return.
+- Captures per-arm extrema, ROM, tempo, minimum confidence, and peak timing difference.
+- Partial curls reach evaluator; standing duplicates and low-confidence gaps do not count.
+- Added curl-specific range and symmetry feedback through shared structured issues.
+- Added normalized torso-position evidence; squat-like vertical translation resets curl attempts.
+- Moved the debug curl preview below the primary Squat card.
+- Stabilized skeleton display without changing detector inputs: primary pose only, `0.6` landmark confidence gate, adaptive EMA, and reset on tracking loss.
+- Medium resolution produced frequent 15–39 MB large-object GC collections and 1–2 second perceived delay on target device; reverted to low resolution.
+- Replaced fixed display EMA with adaptive smoothing (`0.2` stationary, `0.7` moving) so jitter is damped without multi-frame motion lag.
+- Removed hardcoded Squat text from shared preparation, settings, and debug diagnostics.
+- Countdown requires two consecutive unusable placement frames before resetting, avoiding cancellation from one inference glitch.
+- Debug builds expose Bicep Curl as a device-tuning preview; release builds keep card hidden.
+- Controller test covers four reps through calibration, evaluation, and summary.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 108 tests passed.
+- `flutter build apk --debug`: passed.
+- Device gate: three scripted target-device sets must count correctly before release exposure and Iteration 08.
+
+## Expansion Iteration 08 record — 2026-08-28
+
+- Added lateral-raise profile, bilateral pose mapping, detector, session wiring, structured feedback, diagnostics, and debug-only selection card.
+- Both arms must raise and return; low confidence or excessive torso movement invalidates active attempt.
+- Rep evidence includes bilateral elevation range, elbow bend, timing symmetry, duration, and confidence.
+- Shared preparation HUD reads exercise profile content. Squat, curl, and lateral raise use one automatic countdown and three-rep calibration engine.
+- Added regressions for detector behavior, registry exposure, correct card/content, shared countdown, calibration, and compact exercise selection.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 117 tests passed.
+- `flutter build apk --debug`: passed.
+- Device gate: three scripted target-device lateral-raise sets must count correctly before release exposure.
+
+## Expansion Iteration 09 record — 2026-08-28
+
+- Added Shoulder Press profile, bilateral detector, registry entry, shared session wiring, feedback, diagnostics, and debug-only card.
+- Press starts and ends with both hands near shoulder height; both hands must return before completion.
+- Tracks overhead elevation, elbow extension, bilateral timing, torso stability, ROM, tempo, and confidence.
+- Incomplete overhead movement remains a completed attempt and receives `Press both hands fully overhead` feedback.
+- Shared setup content, automatic countdown, pose-loss reset, and three-rep calibration include Shoulder Press.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 124 tests passed.
+- `flutter build apk --debug`: passed.
+- Device gate: three scripted target-device Shoulder Press sets must count correctly before release exposure.
+
+## Expansion Iteration 12 record — 2026-08-28
+
+- Skipped Iterations 10–11 by user direction; no reverse-lunge or jumping-jack work added.
+- Extended summaries with weighted Form Score, component scores, consistency, averages, best/lowest rep, and quality distribution.
+- Calibration and missing metrics do not lower component scores. Fewer than two evaluated reps produces no Form Score.
+- Added exercise-aware score labels and tappable horizontal rep timeline with accessible movement details.
+- Timeline remains usable at 320 px and 200% text scaling.
+- Flutter UI skill guided token reuse, extracted widgets, semantics, 48 dp controls, and responsive scrolling.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 126 tests passed.
+- `flutter build apk --debug`: passed.
+
+## Expansion Iteration 13 record — 2026-08-28
+
+- Added immutable completed-set snapshots and in-memory workout state without image, frame, landmark, or raw pose retention.
+- End Set appends exactly once. Next Set resets all live/calibration state while preserving exercise and workout history.
+- Change Exercise preserves history. Finish Workout opens grouped totals and same-exercise comparisons. New Workout clears history explicitly.
+- Workout summary shows reps, Form Score, average ROM/tempo, degradation point, consistency, and issue count per set.
+- Raw movement metrics are compared only inside same-exercise groups; mixed exercises receive totals only.
+- Flutter UI skill guided extracted cards, scrollable layouts, design tokens, empty state, and accessible controls.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 130 tests passed.
+- `flutter build apk --debug`: passed.
+
+## Expansion Iteration 14 record — 2026-08-28
+
+- Added versioned, bounded local workout history using installed `shared_preferences`; no DB or new dependency.
+- Stores summary evidence required for journals/analytics: exercise/timestamp, outcomes, components, ROM/tempo/symmetry/consistency aggregates, degradation point, issues, feedback, optional note, and demo visits.
+- Retains newest 100 workouts. Corrupt JSON, corrupt records, unknown versions, and platform storage failures cannot block live/workout flow.
+- Added device-local day grouping and exercise filtering helpers.
+- Storage tests assert serialized JSON contains no frames, images, landmarks, pose samples, or raw angle maps.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: 136 tests passed.
+- `flutter build apk --debug`: passed.
 
 ## Iteration 01 record — 2026-08-27
 
@@ -254,3 +460,73 @@ Iteration 08A software complete. Live directional coaching, optional persisted T
 - `flutter build apk --debug`: passed in 23.5s.
 - Review agents used: AI Engineer and Test Results Analyzer; both final verdicts PASS for software scope.
 - Hardware pending: Edge TTS network timing/fallback, audio playback, physical haptics, perceived skeleton lag/render cost, real-person rep accuracy, and final threshold tuning.
+
+## Iteration 15 record — 2026-08-29
+
+- Added `fl_chart 1.2.0` for small, single-metric analytics cards.
+- Added exercise-wise history, seven-day summaries, local-day journal, and detailed saved-session entries.
+- Added Form Score, ROM, tempo, degradation-point, symmetry, and consistency trends without mixing exercises.
+- Added issue frequency and labelled good/warning/degraded rep distribution.
+- Missing values remain gaps; a single value explicitly says it is insufficient for a trend.
+- Persisted rep outcomes and editable notes while continuing to exclude frames, images, landmarks, and raw angles.
+- Added focused domain, persistence, empty-state, and 320px/200%-text analytics tests.
+- `flutter test`: 141 tests passed.
+- Iterations 09–11 remain intentionally deferred as previously agreed.
+
+## Iteration 16 record — 2026-08-29
+
+- Added a pure Dart, same-exercise insight engine; no LLM, prediction, opaque score, or dependency.
+- Recent progress compares the latest two comparable values with metric-specific tolerance bands.
+- Improvement claims are limited to Form Score, consistency, later degradation, lower symmetry error, and reduced same-issue rate.
+- Added Best Set, Best Session, supported Personal Records, repeated Feedback History follow-up, latest activity streak, and normalized weekly strongest/weakest exercise.
+- Earlier/later evidence buttons open both supporting saved sessions.
+- Ties, insufficient samples, missing metrics, and unavailable weekly comparisons stay neutral.
+- `flutter analyze`: passed with no issues.
+- `flutter test`: 148 tests passed.
+- Iterations 09–11 remain intentionally deferred as previously agreed.
+
+## Iteration 17 record — 2026-08-29
+
+- Added per-exercise first-visit Guided Demo gating using the existing versioned local history store.
+- Added five automatic, 2-second-spaced posture/instruction cycles requiring fresh ready pose frames.
+- Pose loss, low confidence, stale frames, and unsupported exercise metrics do not advance demo progress.
+- Added exercise-aware knee, elbow, bilateral elevation, and symmetry guidance for implemented exercises only.
+- Existing voice setting controls spoken demo guidance; visual guidance stays authoritative on synthesis failure.
+- Added compact per-card Replay Demo actions; normal later visits skip completed demos.
+- Demo exit marks nothing, and failed persistence never blocks regular preparation/countdown.
+- `flutter analyze`: passed with no issues.
+- `flutter test`: 153 tests passed.
+- `flutter build apk --debug`: passed.
+- Hardware pending: real-person five-cycle timing, exercise-specific setup thresholds, camera switching, and spoken guidance.
+- Iterations 09–11 remain intentionally deferred as previously agreed.
+
+## Iteration 18 record — 2026-08-29
+
+- Added Open, 8, 10, and 12-rep set plans; selected targets survive preparation and countdown.
+- Targeted midpoint is `ceil(target / 2)`; Open sets visibly define Rep 5 as fallback.
+- Added deterministic pre-set, single midpoint, and post-set TTS formatters using structured evidence only.
+- Pre-set speech filters durable and in-workout evidence to the selected exercise.
+- Mid-set correction requires a repeated matching issue; good or insufficient evidence stays positive/neutral.
+- Post-set speech reports only supported reps, scores, degradation point, and repeated issue correction.
+- Removed live rep-by-rep TTS while retaining visible coaching and haptic transitions.
+- Speech synthesis/playback remains asynchronous outside pose processing.
+- `flutter analyze`: passed with no issues.
+- `flutter test`: 159 tests passed.
+- `flutter build apk --debug`: passed.
+- Hardware pending: speech timing, interruptions, volume, and audibility during real sets.
+- Iterations 09–11 remain intentionally deferred as previously agreed.
+
+## Iteration 19 record — 2026-08-29
+
+- Added one heavy haptic and one short Flutter system alert for every completed degraded rep.
+- Added independent persisted Sound cues control beside Voice coaching and Haptic coaching.
+- Warning, good, calibration, depth, and tracking-loss states remain visual and produce no degraded cue.
+- Deduplication uses exercise/set identity plus rep number; rebuilds cannot replay and consecutive degraded reps cue independently.
+- Disabled or backgrounded degraded events are consumed silently and cannot replay after enabling or resuming.
+- Lifecycle pause suppresses channels and interrupts pending audio; output remains outside pose inference.
+- Reused Flutter `SystemSound`; no package, asset, or exercise-specific sound was added.
+- `flutter analyze`: passed with no issues.
+- `flutter test`: 161 tests passed.
+- `flutter build apk --debug`: passed.
+- Hardware pending: alert volume, vibration strength, lifecycle suppression, and consecutive degraded-rep behavior.
+- Iterations 09–11 remain intentionally deferred as previously agreed.

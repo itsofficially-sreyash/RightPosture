@@ -1,33 +1,115 @@
-# screens.md
-REVISED — mode select screen REMOVED (decision.md D8, modes merged). Onboarding screen ADDED (decision.md D12, reverses earlier cut). Four screens now.
+# App Screens
 
-0. **Onboarding** (new, P1 — decision.md D12)
-   - Single full-bleed lime screen (kit style — see color_palette.md, ui/onboarding.md), app name/logo, one-line explainer, camera permission request as the primary CTA.
-   - Shown once per app session (no persistence, per prd.md scope) — not a multi-step carousel, one screen only.
-   - Skippable/cuttable first if time runs short (features.md).
+## Total number of screens: 8
 
-1. **Exercise Select**
-   - Fixed list per decision.md D4 (squat, lunge — lunge cuttable per execution/04 "if behind schedule").
-   - First screen, no mode choice before it — one less decision for the user, one less thing to build.
+### 1. Exercise Selection
 
-2. **Live Session**
-   - Camera feed, live skeleton overlay.
-   - Rep counter, always visible.
-   - Live per-rep status indicator (data_model.md `Rep.status`): good/warning/degraded, shown as the rep completes. Early in the set (before baseline established — first 2-3 valid reps), show a neutral "calibrating" state rather than a verdict — don't evaluate against a baseline that doesn't exist yet (data_model.md, execution/04).
-   - P1: reason text on warning/degraded reps, audio/visual cue at the moment of a degraded rep.
+The starting screen where the user chooses an exercise.
 
-3. **Session Summary**
-   - Total reps, Form Score % (data_model.md `formScorePercent` — renamed from "compliance," decision.md D7 terminology note).
-   - Rep-by-rep checklist: ✓ good / ⚠ warning / ❌ degraded, matching the desired-MVP format.
-   - "Form degradation detected from Rep N" line if `degradationStartRep` is set, plus `primaryResponsibleJoint` ("Primary movement change: knee alignment deviation").
-   - "Restart" → back to Exercise Select, full session state reset (baseline, reps, everything — statemanagement.md).
-   - P2 stretch: export/share (mocked, decision.md D5) — only if time allows.
+It shows:
 
-## Explicitly not building
-- Mode select screen — removed, decision.md D8.
-- Multi-step onboarding carousel — only ONE onboarding screen, decision.md D12.
-- Settings screen.
-- Login/profile screen.
+- The available exercises.
+- A short description of each exercise.
+- An option to start an exercise.
+- An option to replay the guided setup for an exercise.
+- Shortcuts to Analytics and Coaching Settings.
 
-## UI design system
-Visual language (colors, typography, cards, animation) sourced from user-provided reference kit — see color_palette.md, design.md, and per-screen docs in ui/. Decision.md D13 — note the kit's own tab-based/multi-feature screens (Browse, Home Dashboard, Trainer Profiles) are NOT part of this app's scope; only the visual language is adopted, not those screens.
+### 2. Guided Setup
+
+A camera-based introduction that helps the user learn the correct movement before starting an exercise.
+
+It shows:
+
+- The live camera view and detected body pose.
+- The selected exercise name.
+- Step-by-step posture instructions.
+- Progress through the required posture checks.
+- Messages when the user is not visible, required joints are not visible, or the camera needs attention.
+- An option to exit the setup.
+
+### 3. Exercise Camera
+
+The main camera screen used to prepare for and perform a set.
+
+Before the set, it shows:
+
+- The live camera view and detected body pose.
+- Exercise setup instructions.
+- Rep-target choices: open set, 8 reps, 10 reps, or 12 reps.
+- Guidance for positioning the body in the frame.
+- A start button and countdown.
+
+During the set, it shows:
+
+- The live camera view and detected body pose.
+- The current rep count and target.
+- Calibration progress for the first reps.
+- Live coaching and form feedback.
+- Camera or tracking interruption messages.
+- An option to end the set.
+
+### 4. Set Summary
+
+A review shown after one exercise set is completed.
+
+It shows:
+
+- The exercise name and completion status.
+- Total reps and Form Score.
+- The number of good, warning, degraded, and calibration reps.
+- Score details such as consistency, tempo, range of motion, symmetry, and degradation point when available.
+- A rep timeline and a checklist of individual reps.
+- Form issues, feedback, and movement metrics for each rep.
+- Options to start the next set, change exercise, or finish the workout.
+
+### 5. Workout Summary
+
+The final overview shown after the user finishes a workout.
+
+It shows:
+
+- Total completed sets and reps.
+- Completed sets grouped by exercise.
+- Per-set Form Score, average tempo, average range, consistency, degradation point, and detected issue count.
+- Comparisons between consecutive sets of the same exercise.
+- An option to start a new workout.
+
+### 6. Analytics
+
+A history and progress screen for completed workouts.
+
+It shows:
+
+- An exercise filter.
+- Weekly sets, reps, average Form Score, activity streak, and exercise ranking.
+- Recent progress insights.
+- Best sets, best sessions, and personal records.
+- Follow-up information about repeated coaching feedback.
+- An activity calendar and workouts for a selected day.
+- Trend charts for supported movement metrics.
+- Rep-quality distribution and commonly detected issues.
+- Empty, loading, and retry states when history is unavailable.
+
+### 7. Session Entry
+
+A detailed history screen for one completed workout.
+
+It shows:
+
+- The workout date.
+- An editable session note.
+- Every set in the workout.
+- Rep totals, Form Score, consistency, tempo, range, and degradation information for each set.
+- A rep timeline.
+- Detected issues and feedback history.
+
+### 8. Coaching Settings
+
+A screen for controlling the types of coaching used during exercise sessions.
+
+It shows:
+
+- A Voice Coaching toggle.
+- A Haptic Coaching toggle.
+- A Sound Cues toggle.
+- A short explanation of what each option does.

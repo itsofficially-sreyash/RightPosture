@@ -8,11 +8,9 @@
 ## Team split (3 people) — assign, don't leave ambiguous
 - Suggest: 1 person owns pose/camera pipeline + rep-evaluation core, including the baseline+persistence algorithm (highest technical risk, needs to start first — decision.md D11). 1 person owns Flutter UI/screens + Riverpod wiring. 1 person owns the summary layer once the core stream exists, plus demo-script/pitch prep. Adjust to actual skill split — this is a default, not a mandate.
 
-## Office Kit (10% of score) — unresolved, decide early
-Office Kit = phone-to-laptop bridge (screen mirroring, clipboard, file transfer, remote control per brief section 5). Currently no plan for how this app demonstrates Office Kit usage — a pure on-device Flutter app doesn't naturally need it. Options to consider, not yet decided:
-- Mirror the live demo from phone to laptop screen for the judges via Office Kit during the pitch (satisfies "measured usage" without adding a feature).
-- Some Green Light-only laptop step (e.g., pulling session data to a laptop dashboard) — costs build time, only do this if Office Kit score materially matters relative to effort elsewhere.
-Flag this as a required decision before Evaluation Round 1 — 10% of score currently has no plan.
+## Office Kit (10% of score)
+
+Mirror live phone demo to laptop during pitch (decision.md D6). No dashboard, export bridge, or app subsystem.
 
 ## Checkpoints (per brief section 8 timeline)
 - By Mentor Round 1 (~15:30): pose pipeline should be verified working on-device (decision.md D3 condition resolved one way or the other).
@@ -21,3 +19,9 @@ Flag this as a required decision before Evaluation Round 1 — 10% of score curr
 
 ## Git/build hygiene
 - Not specified by user yet — add branch strategy / commit convention here once team agrees on one. Left open deliberately rather than assumed.
+
+## Iteration workflow
+
+- Use `iterations.md` as index; load one file from `basemode/iterations/` at a time.
+- Do not scaffold analytics before Iteration 14. Do not expose an exercise before its device gate.
+- After each iteration, update `progress.md` with checks, evidence, cuts, blockers, and next file.

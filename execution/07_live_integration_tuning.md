@@ -1,5 +1,9 @@
 # Iteration 07 — Live Integration and Threshold Tuning
 
+## Status
+
+Instrumented and device-gated as of 2026-08-27. Debug builds already expose processing time, knee angle, selected side, and landmark confidence. Camera input already uses `ResolutionPreset.low`. Threshold changes require hardware evidence.
+
 ## Goal
 
 Make squat counting and degradation detection reliable for rehearsed real-person demo conditions.
@@ -24,3 +28,4 @@ Make squat counting and degradation detection reliable for rehearsed real-person
 
 Team has one reproducible demo setup and script. Any unsupported posture/body/camera limitations are documented honestly.
 
+This gate is not met without real-person/device runs.

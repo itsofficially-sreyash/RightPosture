@@ -1,5 +1,9 @@
 # Iteration 08 — Resilience and P1 Polish
 
+## Status
+
+Software complete on 2026-08-27. Hardware permission and lifecycle checks remain pending.
+
 ## Goal
 
 Protect live demo, then add only cheap polish that does not hurt camera performance.
@@ -30,3 +34,4 @@ Cut animation, audio, onboarding, and session history before touching stable P0 
 
 No known demo-path crash. P1 additions cause no visible pose/preview regression.
 
+Automated software gate passed. Device-only denial/grant, settings return, background/foreground, and repeated-session checks remain user-owned.

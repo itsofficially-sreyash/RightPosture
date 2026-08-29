@@ -7,8 +7,9 @@ Full-bleed `accent-lime` (#D6FF5A) background, matching the kit's Congratulation
 - Icon/checkmark area, centered upper-middle — dark circle (`surface-card-elevated` #2D2D35) with a checkmark, OR adapt to the session's actual outcome (see States below, this isn't always a pure "success" moment).
 - Headline stat: Form Score % (data_model.md `formScorePercent`), large bold numeral, matching the kit's big-numeral treatment.
 - Supporting text line(s): total reps, and "Form degradation detected from Rep N — [responsible joint]" if `degradationStartRep` is set (data_model.md `SessionSummary`) — never phrase this as injury risk (decision.md D9).
-- Rep-by-rep checklist below the headline: ✓ good / ⚠ warning / ❌ degraded per rep, matching the desired-MVP format from the external review that shaped decision.md D11.
-- Single CTA button, bottom: "Restart" — dark pill button on the lime background, kit's "Close" button pattern adapted.
+- Rep timeline below the headline: calibration/good/warning/degraded markers with accessible tap details for feedback, ROM, tempo, and confidence.
+- Component scores and rep quality distribution when enough evaluated data exists.
+- CTAs: Next Set, Change Exercise, Finish Workout. Persistence follows snapshot rules in `statemanagement.md`.
 - P2 (only if time allows): export/share button (mocked, decision.md D5) — do not build unless P0/P1 elsewhere is fully done.
 
 ## States
@@ -23,4 +24,4 @@ Full-bleed `accent-lime` (#D6FF5A) background, matching the kit's Congratulation
 
 ## Explicitly not building
 - Confetti/particle effects — the kit doesn't show this, and it's exactly the kind of polish that costs build time without rubric payoff (design.md's animation guidance already flags this).
-- Multiple summary "tabs" or sections — one scrollable screen, not a tabbed results dashboard (decision.md D13, no tab navigation anywhere in this app).
+- Chart dependency. Timeline uses lightweight Flutter widgets.

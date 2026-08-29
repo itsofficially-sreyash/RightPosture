@@ -45,12 +45,20 @@ Known cost of this flip: no documented Snapdragon NPU delegate hook — do NOT c
 Known caveat carried over: platform-channel-based Flutter pose detection has a documented latency tax in at least one comparable implementation — budget for "real-time" meaning smooth-enough, not zero-latency (already correctly avoided that language, see project.md).
 Condition: still NOT yet verified on the actual iQOO loaner hardware specifically — this decision is provisional until execution/01_verify_hardware.md passes. No fallback package currently defined for this choice (previously ML Kit WAS the fallback; now nothing is). If ML Kit fails hardware verification, this needs a new decision, not an automatic fallback.
 
-## D4 — Exercises in scope: Squat + Lunge (locked, default — override if wrong)
+## D4 — Exercises in scope: Squat + Lunge (superseded by D14)
 Chosen because both are sagittal/frontal-plane reliable for monocular 2D pose (per prd.md open risks — no depth judgment needed), and both map cleanly to a standing→bottom→standing rep state machine (data_model.md). Not confirmed by user explicitly — this is the lowest-risk default, flag now if a different exercise pair is wanted.
+
+## D14 — Six-exercise final scope with gated availability (locked, supersedes D4)
+The finalized scope is Squat, Reverse Lunge, Bicep Curl, Shoulder Press, Lateral Raise, and Jumping Jack. They share one measurement/evaluation pipeline but retain small exercise-specific detectors. Exercises are delivered in the order defined by `iterations.md` and remain hidden until their detector, evaluation, feedback, summary, tests, and target-device rehearsal pass. Incomplete exercise cards are not a feature.
+
+Push-ups, planks, deadlifts, and floor exercises remain deferred because camera placement and occlusion make them poor fits for this release. The product remains on-device and non-clinical.
+
+## D15 — Local summary analytics (locked)
+
+Day/week trends require restart-safe history, superseding the earlier no-persistence constraint. Persist bounded, versioned summary JSON with installed `shared_preferences`; no new database package. Store exercise/session/set/rep summary evidence and optional notes only. Never store frames, images, landmark streams, or raw pose samples. Compare raw metrics only within the same exercise. Add a database only after measured storage or query limits justify it.
 
 ## D5 — "Send to physio" / compliance report: MOCKED, not real
 No clinic integration exists or will exist by demo time. Any "share with physio" feature is a local PDF/export mock. Must be stated as such in the pitch — do not imply a real integration. Judges score self-reported device claims at 0%; only measured device data (25%) and jury eval count, but a false claim caught live wrecks end-product-quality trust (30%).
 
 ## D6 — Office Kit plan: screen mirroring during pitch (locked, default — override if wrong)
 No feature built for Office Kit. Instead: mirror the live phone demo to a laptop screen for judges via Office Kit during the 3-5 min pitch (workflow.md Option 1). Zero build cost, satisfies "measured usage" of the phone-to-laptop bridge without diverting build time from P0/P1 features. If Office Kit's 10% needs a stronger showing than passive mirroring, that's a real scope add — flag it, not assumed here.
-

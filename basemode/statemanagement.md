@@ -1,27 +1,34 @@
-# statemanagement.md
-Riverpod (locked). REVISED — modes merged (decision.md D8), one evaluation pipeline, no mode branching in providers.
+# State management
 
-## Providers (minimum viable set)
+Riverpod remains the app state boundary. Camera/ML ownership stays outside widgets and outside persistent history.
 
-- `cameraControllerProvider` — `Provider`/`FutureProvider`, wraps `camera` package controller lifecycle. Unchanged.
+## Providers/controllers
 
-- `poseStreamProvider` — `StreamProvider<PoseFrame>`, wraps `google_mlkit_pose_detection` output, includes hand-written angle calc (decision.md D3). Unchanged — single source all downstream logic consumes.
+- Settings: independently persisted voice, degraded-rep sound, and degraded-rep haptic preferences.
+- Session controller: selected profile, optional set target, session stage, detector/evaluator/smoother lifecycle, reps, baseline, feedback, summary.
+- Workout controller: immutable completed sets, next set, change exercise, finish/reset workout.
+- History repository/provider: versioned summary JSON load/save through `shared_preferences`.
+- Analytics providers: pure derived filters/aggregates by exercise, day, week, and selected session.
 
-- `sessionStateProvider` — `StateNotifierProvider<SessionStateNotifier, SessionState>`. Holds exercise, rep list, baseline, status (data_model.md SessionState — `mode` field removed). Notifier methods: `startSession`, `recordRep` (also updates baseline once the first 2-3 valid reps are in), `endSession`.
+## Boundaries
 
-- `repEvaluationProvider` — RENAMED from `repDetectionProvider`, and now does the FULL merged evaluation in one place instead of branching into two mode-specific providers. Reads `poseStreamProvider` + current `Exercise` thresholds + `sessionStateProvider.baseline`:
-  1. Runs the standing→bottom→standing state machine to detect a completed rep.
-  2. Checks absolute range (data_model.md `Exercise.angleThresholds`) — violation = immediate `warning` or `degraded`, no baseline needed.
-  3. If baseline established, computes deviation from baseline, checks against `deviationThreshold`.
-  4. Tracks consecutive-deviation count to decide `warning` vs `degraded` (`persistenceCount` logic, data_model.md).
-  5. Calls `sessionStateProvider.recordRep()` with the resulting `Rep` (single status, not two separate mode outputs).
+- Pose mapper creates domain-safe coordinates/confidence.
+- Metric extraction calculates angles/normalized distances.
+- Detector owns attempt phases/completion.
+- Evaluator owns baseline, thresholds, issues, persistence, verdict.
+- Feedback selector formats evidence.
+- Checkpoint formatter derives pre/mid/post speech; midpoint state deduplicates once per set.
+- Cue coordinator deduplicates degraded events by set identity plus rep number and suppresses background output.
+- Summary/analytics code aggregates immutable summaries.
+- Widgets render state and invoke actions only.
 
-- `sessionSummaryProvider` — derived `Provider`, computes `SessionSummary` (data_model.md) from `sessionStateProvider.reps` when `status == complete`. One summary shape, no mode-specific body.
+## Reset rules
 
-## Why this shape
-One shared camera/pose stream, one shared rep-evaluation core producing ONE verdict per rep instead of two parallel verdicts from two mode-specific evaluators. This is simpler than the previous two-mode architecture, not just relabeled — there is no mode field anywhere in this provider graph anymore (decision.md D8).
+- Next Set preserves workout/history and exercise; clears live detector, smoothing, calibration, feedback, countdown.
+- Change Exercise preserves workout/history; loads new profile and clears live engines.
+- Finish Workout persists one immutable summary snapshot.
+- Reset Workout clears current in-memory workout, not durable history.
 
 ## Explicit no's
-- No mode-selection provider — removed.
-- No global app-wide state beyond session — no user profile, no persistence, per prd.md scope.
-- Don't reach for Riverpod code-gen unless a team member is already fluent — plain `StateNotifierProvider`/`Provider` is faster to debug under time pressure.
+
+No mode provider, raw camera state in analytics, Riverpod code generation, database abstraction, backend, account, or cross-exercise raw-metric comparison.

@@ -1,5 +1,5 @@
 # design.md
-Visual design system, derived from the user-provided reference kit (decision.md D13). This describes patterns observed in the kit and how they map to OUR four screens (screens.md) — it does not describe the kit's full app, most of which is out of scope (browsing library, home dashboard, trainer marketplace — see decision.md D13's explicit "not adopted" list).
+Visual design system derived from user-provided kit (decision.md D13). It applies to core session and analytics screens in `screens.md`; kit marketplace/trainer content remains out of scope.
 
 ## Typography (observed pattern, exact font not verifiable from a screenshot)
 - Bold, condensed-leaning sans-serif for headings ("Congratulation", "Get ready", rep counter "10") — high weight, tight tracking.

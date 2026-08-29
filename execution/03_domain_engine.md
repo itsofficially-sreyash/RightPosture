@@ -6,7 +6,7 @@ Build and prove rep/evaluation logic without camera, Flutter widgets, or Riverpo
 
 ## Scope
 
-- Add minimal immutable models for exercise thresholds, joint samples, reps, session state, and summary.
+- Add only immutable models used by pure domain logic: exercise thresholds, reps, and summary. Defer camera-owned joint samples and Riverpod-owned session state to their integration iterations.
 - Implement three-point joint-angle calculation with invalid/degenerate-input handling.
 - Implement squat standing/bottom/standing state machine with hysteresis to avoid double counts.
 - Accept completed-rep angle samples, confidence-gate them, and establish median baseline from 3 valid reps.
@@ -22,10 +22,9 @@ Build and prove rep/evaluation logic without camera, Flutter widgets, or Riverpo
 - Invalid/low-confidence sample does not affect rep count or baseline.
 - Baseline median resists one outlier.
 - One deviation gives warning; configured persistence gives degraded.
-- Absolute violation follows approved immediate-verdict rule.
+- After calibration, an absolute violation follows the approved immediate-verdict rule.
 - Empty and calibration-only summaries avoid division by zero or misleading scores.
 
 ## Exit gate
 
 All pure Dart tests pass. Domain engine imports no camera, ML Kit, Riverpod, or widget libraries.
-

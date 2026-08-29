@@ -1,5 +1,9 @@
 # Iteration 06 — Core UI Flow
 
+## Status
+
+Software complete on 2026-08-27. Physical-device flow and performance remain user-owned hardware checks.
+
 ## Goal
 
 Build complete P0 flow around tested state, using design tokens and adaptive layouts.
@@ -25,5 +29,4 @@ Build complete P0 flow around tested state, using design tokens and adaptive lay
 
 ## Exit gate
 
-Synthetic end-to-end flow works without camera, then real camera flow reaches summary on iQOO.
-
+Synthetic UI/state flow, analyzer, tests, and debug APK pass. Real camera flow to summary remains a hardware gate.

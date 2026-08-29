@@ -13,7 +13,16 @@ Hackathon-scoped: goal is graceful, non-crashing fallback for the demo, not comp
 ## Rep-detection / evaluation
 - Ambiguous rep (angle state machine doesn't cleanly resolve standing→bottom→standing) → don't count a half-formed rep. Better to undercount than to show an obviously wrong rep number live.
 - Single noisy frame causing a spurious deviation reading → this is exactly what the persistence requirement (decision.md D11) exists to absorb — a one-off deviation should register as `warning` at most, never `degraded`, until it persists across `persistenceCount` consecutive reps. If this isn't holding in testing, the algorithm implementation is wrong, not the noise.
+- Skeleton display uses only the primary pose and landmarks at or above `0.6` confidence. Display smoothing resets immediately on pose loss, camera switch, or lifecycle restart; raw evaluation samples are never replaced by display-smoothed coordinates.
 - Baseline never establishes (e.g., first 2-3 reps are all low-confidence) → session should stay in "calibrating" state rather than silently evaluating against a missing baseline (screens.md) — surface this to the user rather than producing undefined behavior.
+- Two consecutive unusable placement frames cancel countdown and return to preparation; one low-confidence inference is treated as sensor noise. Lifecycle pause, camera switch, Back, or reset cancels immediately. After placement becomes stable again, countdown restarts from 3. No rep or baseline data is retained from preparation/countdown.
 
 ## General
 - Any unhandled exception during Live Session screen → catch at the screen level, show "session ended unexpectedly, tap to restart" rather than a full app crash. A recoverable error in front of judges is much better than a crash — build this wrapper even if nothing else in this file gets full coverage.
+
+## Local history and analytics
+
+- Failed/corrupt/unknown-version history loads as empty history with recoverable diagnostics; it never blocks camera/session flow.
+- Failed history write keeps current summary visible and offers retry. Never discard live results before an immutable in-memory snapshot exists.
+- Missing metrics remain unavailable in trends; never substitute zero.
+- Optional session note is user-entered context and must never be presented as measured evidence.

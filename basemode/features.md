@@ -1,29 +1,42 @@
-# features.md
-Priority: P0 = demo dies without it. P1 = strengthens score, cuttable under time pressure. P2 = only if P0/P1 done early.
-REVISED — modes merged into one pipeline (decision.md D8), "injury risk" renamed "form degradation" (decision.md D9).
+# Feature priority and release gates
 
-## P0 — Must work for the demo to exist
-- Camera feed + live pose landmark overlay (skeleton drawn on user in real time).
-- Rep counter using angle-based state machine (standing→bottom→standing = 1 rep).
-- Exercise selection screen (fixed list, decision.md D4).
-- Baseline establishment from first 2-3 valid reps (data_model.md, execution/04) — the noise-robust foundation everything else depends on.
-- Unified per-rep evaluation: absolute range check + baseline-deviation check + persistence-based degradation detection, producing ONE status per rep (good/warning/degraded) — not two separate mode outputs.
-- Session Summary: total reps, Form Score %, rep checklist, degradation-start-rep callout if applicable.
+Final behavior is defined in `rightposture_merged_spec.md`. Delivery order is defined in `iterations.md`.
 
-## P1 — Strengthens rubric score, cut if behind schedule
-- Onboarding screen (single screen, app intro + camera permission ask) — decision.md D12, reverses earlier cut. Cheap to build, cuttable first under time pressure.
-- On-screen reason text per warning/degraded rep (explainability — supports technical depth).
-- `primaryResponsibleJoint` shown in summary ("knee alignment deviation" style callout) — this is the line that makes the degradation detection legible to a judge, worth prioritizing over other P1s if time is tight.
-- Visual/audio cue at the moment a rep is flagged degraded, live during the set, not just on the summary screen.
-- Basic session history within the same app run (not persisted) — lets you show a second set live.
+## Foundation — required before any new exercise
 
-## P2 — Do not build unless P0 and P1 are fully done with hours to spare
-- Exported/shareable summary (mocked, decision.md D5).
-- Second exercise beyond the primary one (lunge, if squat is solid — execution/04).
+- Reliable confidence propagation, smoothing, stable-side selection, and partial-attempt handling.
+- Shared `MovementFrame`, exercise profile, detector, evaluator, and registry contracts.
+- Exercise-aware preparation, positioning, and countdown.
+- Structured issues, deterministic feedback, tempo, and range metrics.
+- Squat regression and physical-device gate.
 
-## Explicitly rejected (do not resurrect under time pressure)
-- Calorie counter — no reliable input data.
-- Pre-rendered "ideal form" GIF/3D dummy — replaced by live skeleton overlay.
-- Multi-exercise library, user accounts, cloud sync.
-- Two separate modes (Form Check / Risk Watch as distinct user-facing flows) — merged into one pipeline, decision.md D8. Do not rebuild the mode-select screen or a second evaluation path under time pressure; the whole point of the merge was to cut this exact complexity.
-- "Injury risk" as a claim anywhere in the app or pitch — unsupported, killed, decision.md D9. Use "form degradation."
+## Exercise vertical slices
+
+Ship in this order:
+
+1. Squat
+2. Bicep Curl
+3. Lateral Raise
+4. Shoulder Press
+5. Reverse Lunge
+6. Jumping Jack
+
+An exercise is visible only when setup guidance, detector, evaluator, feedback, summary labels, automated tests, and three target-device sets pass.
+
+## Shared product features
+
+- Rep timeline and component score breakdown.
+- In-memory multi-set workout and same-exercise comparison.
+- First-visit five-step guided demo.
+- Evidence-based TTS at pre-set, midpoint, and post-set checkpoints.
+- Deduplicated degraded-rep haptic/audio cues and settings.
+- Local summary-only history, day/exercise journal, supported metric trends, issue frequency, records, and evidence-linked progress insights.
+
+These follow their `iterations.md` gates. Do not start one early because its UI looks easy.
+
+## Explicitly deferred
+
+- Accounts, custom DB layer, backend, cloud sync, retained pose/images, multi-person tracking.
+- Generative/cloud coaching, rep-by-rep TTS, exercise-specific sounds.
+- Chart packages beyond approved `fl_chart`, code generation, or speculative detector framework.
+- Push-ups, planks, deadlifts, floor exercises, calories, and real clinic integration.
