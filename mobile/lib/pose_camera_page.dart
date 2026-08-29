@@ -6,10 +6,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'domain/models.dart';
+import 'domain/checkpoint_tts.dart';
 import 'domain/exercise.dart';
 import 'domain/feedback_catalog.dart';
+import 'domain/history.dart';
 import 'domain/exercise_registry.dart';
 import 'coaching_cues.dart';
+import 'history_storage.dart';
 import 'pose_painter.dart';
 import 'pose_landmark_mapper.dart';
 import 'pose_pipeline.dart';
@@ -33,12 +36,20 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
   PosePipelineSnapshot? _consumedSnapshot;
   PosePipelineStatus _pipelineStatus = PosePipelineStatus.initializing;
   String? _pipelineError;
+  late final Future<List<HistoryWorkout>> _historyFuture;
+  final MidpointCheckpoint _midpoint = MidpointCheckpoint();
+  Future<void>? _preSetSpeech;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _cues = CoachingCueCoordinator.production();
+    _cues.setForeground(
+      WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+    );
+    _historyFuture = ref.read(historyStorageProvider).load();
     if (ref.read(settingsControllerProvider).ttsEnabled) {
       unawaited(_cues.prepare());
     }
@@ -129,8 +140,10 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       unawaited(_pipeline.pause());
+      _cues.setForeground(false);
       ref.read(sessionControllerProvider.notifier).trackingInterrupted();
     } else if (state == AppLifecycleState.resumed) {
+      _cues.setForeground(true);
       unawaited(_pipeline.start());
     }
   }
@@ -156,11 +169,23 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
       session.selectedExercise,
     );
     ref.listen(sessionControllerProvider, (_, next) {
-      _cues.handle(
+      _cues.handleRepCue(
         preferences: ref.read(settingsControllerProvider),
-        coaching: next.coaching,
+        sessionId:
+            '${next.selectedExercise.name}:'
+            '${next.workout.completedSets.length + 1}',
         latestRep: next.latestFeedback,
       );
+      if (next.phase == SessionPhase.tracking && _preSetSpeech == null) {
+        _preSetSpeech = _speakPreSet(next);
+      }
+      if (next.phase == SessionPhase.tracking &&
+          _midpoint.shouldFire(
+            completedReps: next.reps.length,
+            targetRepCount: next.targetRepCount,
+          )) {
+        unawaited(_speakMidSet(next));
+      }
     });
     ref.listen(settingsControllerProvider, (previous, next) {
       if (next.ttsEnabled && !(previous?.ttsEnabled ?? false)) {
@@ -196,6 +221,9 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
                     onStart: ref
                         .read(sessionControllerProvider.notifier)
                         .startCountdown,
+                    onTargetChanged: ref
+                        .read(sessionControllerProvider.notifier)
+                        .setTargetRepCount,
                   ),
                 ),
               if (session.phase == SessionPhase.tracking &&
@@ -217,6 +245,34 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
       ),
     );
   }
+
+  Future<void> _speakPreSet(SessionState session) async {
+    final stored = await _historyFuture;
+    if (!mounted ||
+        ref.read(sessionControllerProvider).phase != SessionPhase.tracking) {
+      return;
+    }
+    final previous = [
+      ...stored.expand((workout) => workout.sets),
+      ...session.workout.completedSets.map(HistorySet.fromCompletedSet),
+    ];
+    _cues.speak(
+      preSetCheckpointMessage(session.selectedExercise, previous),
+      enabled: ref.read(settingsControllerProvider).ttsEnabled,
+    );
+  }
+
+  Future<void> _speakMidSet(SessionState session) async {
+    await _preSetSpeech;
+    if (!mounted ||
+        ref.read(sessionControllerProvider).phase != SessionPhase.tracking) {
+      return;
+    }
+    _cues.speak(
+      midSetCheckpointMessage(session.selectedExercise, session.reps),
+      enabled: ref.read(settingsControllerProvider).ttsEnabled,
+    );
+  }
 }
 
 bool shouldShowLiveSessionHud(PosePipelineStatus status) =>
@@ -229,12 +285,14 @@ class PreparationHud extends StatelessWidget {
     required this.exerciseName,
     required this.instruction,
     required this.onStart,
+    this.onTargetChanged,
   });
 
   final SessionState state;
   final String exerciseName;
   final String instruction;
   final VoidCallback onStart;
+  final ValueChanged<int?>? onTargetChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -264,6 +322,37 @@ class PreparationHud extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.small),
                     Text(instruction),
+                    const SizedBox(height: AppSpacing.medium),
+                    Text(
+                      'Set target',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.small),
+                    Wrap(
+                      spacing: AppSpacing.small,
+                      runSpacing: AppSpacing.small,
+                      children: [
+                        for (final target in const <int?>[null, 8, 10, 12])
+                          ChoiceChip(
+                            label: Text(
+                              target == null ? 'Open' : '$target reps',
+                            ),
+                            selected: state.targetRepCount == target,
+                            onSelected: onTargetChanged == null
+                                ? null
+                                : (selected) {
+                                    if (selected) onTargetChanged!(target);
+                                  },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.small),
+                    Text(
+                      state.targetRepCount == null
+                          ? 'Open set: coaching check at rep 5'
+                          : 'Coaching check at rep '
+                                '${(state.targetRepCount! / 2).ceil()}',
+                    ),
                     const SizedBox(height: AppSpacing.medium),
                     Semantics(
                       liveRegion: true,

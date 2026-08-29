@@ -14,6 +14,14 @@ import '../pose_pipeline.dart';
 import '../settings_controller.dart';
 import 'app_theme.dart';
 
+Future<void> finishGuidedDemoTransition({
+  required Future<void> Function() closeCamera,
+  required Future<void> Function() persistVisit,
+}) async {
+  await closeCamera();
+  await persistVisit();
+}
+
 class GuidedDemoPage extends ConsumerStatefulWidget {
   const GuidedDemoPage({super.key, required this.exercise});
 
@@ -32,6 +40,7 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
   late String _instruction;
   PosePipelineStatus _status = PosePipelineStatus.initializing;
   Timer? _finishTimer;
+  bool _exiting = false;
 
   @override
   void initState() {
@@ -113,13 +122,35 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
   }
 
   Future<void> _finish() async {
-    try {
-      await ref
-          .read(historyStorageProvider)
-          .markDemoVisited(widget.exercise.name);
-    } catch (_) {
-      // Demo completion must never block normal exercise setup.
+    await _exit(completed: true);
+  }
+
+  Future<void> _exit({required bool completed}) async {
+    if (_exiting) return;
+    _exiting = true;
+    _finishTimer?.cancel();
+    _pipeline.removeListener(_refresh);
+    if (!completed) {
+      await _pipeline.close();
+      await _cues.close();
+      if (mounted) Navigator.of(context).pop(false);
+      return;
     }
+    await finishGuidedDemoTransition(
+      closeCamera: () async {
+        await _pipeline.close();
+        await _cues.close();
+      },
+      persistVisit: () async {
+        try {
+          await ref
+              .read(historyStorageProvider)
+              .markDemoVisited(widget.exercise.name);
+        } catch (_) {
+          // Demo completion must never block normal exercise setup.
+        }
+      },
+    );
     if (mounted) Navigator.of(context).pop(true);
   }
 
@@ -146,9 +177,11 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _finishTimer?.cancel();
-    _pipeline.removeListener(_refresh);
-    unawaited(_pipeline.close());
-    unawaited(_cues.close());
+    if (!_exiting) {
+      _pipeline.removeListener(_refresh);
+      unawaited(_pipeline.close());
+      unawaited(_cues.close());
+    }
     super.dispose();
   }
 
@@ -182,7 +215,7 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
               child: IconButton.filledTonal(
                 key: const Key('close_guided_demo'),
                 tooltip: 'Exit demo',
-                onPressed: () => Navigator.of(context).pop(false),
+                onPressed: () => _exit(completed: false),
                 icon: const Icon(Icons.close),
               ),
             ),

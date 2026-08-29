@@ -1,8 +1,20 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:right_posture/domain/exercise.dart';
 import 'package:right_posture/domain/guided_demo.dart';
+import 'package:right_posture/ui/guided_demo_page.dart';
 
 void main() {
+  test('demo releases camera before opening exercise setup', () async {
+    final events = <String>[];
+
+    await finishGuidedDemoTransition(
+      closeCamera: () async => events.add('camera closed'),
+      persistVisit: () async => events.add('visit saved'),
+    );
+
+    expect(events, ['camera closed', 'visit saved']);
+  });
+
   test('five cycles require fresh frames and spacing', () {
     final tracker = GuidedDemoCycleTracker();
     final start = DateTime(2026, 8, 29, 12);

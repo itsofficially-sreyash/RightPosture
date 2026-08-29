@@ -35,6 +35,7 @@ class SessionState {
     this.placementStable = false,
     this.placementGuidance,
     this.countdownValue,
+    this.targetRepCount,
     WorkoutState? workout,
   }) : reps = List.unmodifiable(reps),
        baseline = baseline == null ? null : Map.unmodifiable(baseline),
@@ -56,6 +57,7 @@ class SessionState {
   final bool placementStable;
   final String? placementGuidance;
   final int? countdownValue;
+  final int? targetRepCount;
   final WorkoutState workout;
 }
 
@@ -115,6 +117,7 @@ class SessionController extends Notifier<SessionState> {
         phase: SessionPhase.preparing,
         selectedExercise: state.selectedExercise,
         placementGuidance: result.message,
+        targetRepCount: state.targetRepCount,
         workout: state.workout,
       );
       return;
@@ -132,9 +135,25 @@ class SessionController extends Notifier<SessionState> {
       selectedExercise: state.selectedExercise,
       placementStable: stable,
       placementGuidance: result.message,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
     if (stable) startCountdown();
+  }
+
+  void setTargetRepCount(int? value) {
+    if (state.phase != SessionPhase.preparing ||
+        (value != null && value <= 0)) {
+      return;
+    }
+    state = SessionState(
+      phase: state.phase,
+      selectedExercise: state.selectedExercise,
+      placementStable: state.placementStable,
+      placementGuidance: state.placementGuidance,
+      targetRepCount: value,
+      workout: state.workout,
+    );
   }
 
   void startCountdown() {
@@ -146,6 +165,7 @@ class SessionController extends Notifier<SessionState> {
       placementStable: true,
       placementGuidance: state.placementGuidance,
       countdownValue: 3,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
     _countdownTimer = Timer.periodic(
@@ -167,6 +187,7 @@ class SessionController extends Notifier<SessionState> {
       placementStable: true,
       placementGuidance: state.placementGuidance,
       countdownValue: value - 1,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
   }
@@ -177,6 +198,7 @@ class SessionController extends Notifier<SessionState> {
     state = SessionState(
       phase: SessionPhase.tracking,
       selectedExercise: state.selectedExercise,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
   }
@@ -215,6 +237,7 @@ class SessionController extends Notifier<SessionState> {
         baseline: state.baseline,
         latestFeedback: state.latestFeedback,
         coaching: coaching,
+        targetRepCount: state.targetRepCount,
         workout: state.workout,
       );
       return;
@@ -234,6 +257,7 @@ class SessionController extends Notifier<SessionState> {
       baseline: _evaluator.baseline,
       latestFeedback: rep,
       coaching: coaching,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
   }
@@ -281,6 +305,7 @@ class SessionController extends Notifier<SessionState> {
       reps: [...state.reps, rep],
       baseline: _evaluator.baseline,
       latestFeedback: rep,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
   }
@@ -349,6 +374,7 @@ class SessionController extends Notifier<SessionState> {
       reps: [...state.reps, rep],
       baseline: _evaluator.baseline,
       latestFeedback: rep,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
   }
@@ -376,6 +402,7 @@ class SessionController extends Notifier<SessionState> {
       workout: WorkoutState(
         completedSets: [...state.workout.completedSets, completed],
       ),
+      targetRepCount: state.targetRepCount,
     );
   }
 
@@ -430,6 +457,7 @@ class SessionController extends Notifier<SessionState> {
       baseline: state.baseline,
       coaching: state.coaching,
       error: message,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
   }
@@ -442,6 +470,7 @@ class SessionController extends Notifier<SessionState> {
       reps: state.reps,
       baseline: state.baseline,
       coaching: state.coaching,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
   }
@@ -471,6 +500,7 @@ class SessionController extends Notifier<SessionState> {
       selectedExercise: state.selectedExercise,
       reps: state.reps,
       baseline: state.baseline,
+      targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
   }

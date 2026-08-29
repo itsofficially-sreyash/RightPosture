@@ -1,17 +1,55 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../coaching_cues.dart';
+import '../domain/checkpoint_tts.dart';
 import '../domain/models.dart';
 import '../domain/feedback_catalog.dart';
 import '../domain/exercise_registry.dart';
 import '../session_controller.dart';
+import '../settings_controller.dart';
 import 'app_theme.dart';
 
-class SessionSummaryPage extends ConsumerWidget {
+class SessionSummaryPage extends ConsumerStatefulWidget {
   const SessionSummaryPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SessionSummaryPage> createState() => _SessionSummaryPageState();
+}
+
+class _SessionSummaryPageState extends ConsumerState<SessionSummaryPage> {
+  late final CoachingCueCoordinator _cues;
+
+  @override
+  void initState() {
+    super.initState();
+    _cues = CoachingCueCoordinator.production();
+    final preferences = ref.read(settingsControllerProvider);
+    if (preferences.ttsEnabled) unawaited(_cues.prepare());
+    final session = ref.read(sessionControllerProvider);
+    final summary = session.summary;
+    if (summary != null) {
+      _cues.speak(
+        postSetCheckpointMessage(
+          session.selectedExercise,
+          summary,
+          session.reps,
+        ),
+        enabled: preferences.ttsEnabled,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_cues.close());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(sessionControllerProvider);
     return SessionSummaryView(
       state: state,

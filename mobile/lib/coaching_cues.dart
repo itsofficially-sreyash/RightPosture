@@ -19,7 +19,7 @@ String coachingText(SquatCoaching coaching) => switch (coaching) {
   SquatCoaching.standUp => 'Stand up',
 };
 
-enum CueHaptic { depth, warning, degraded }
+enum CueHaptic { degraded }
 
 class CoachingCueCoordinator {
   CoachingCueCoordinator({
@@ -27,6 +27,7 @@ class CoachingCueCoordinator {
     Future<void> Function(Uint8List)? play,
     Future<void> Function()? stop,
     Future<void> Function(CueHaptic)? haptic,
+    Future<void> Function()? sound,
     Future<void> Function()? close,
     DateTime Function()? now,
     this.cooldown = const Duration(seconds: 2),
@@ -34,6 +35,7 @@ class CoachingCueCoordinator {
        _play = play,
        _stop = stop,
        _haptic = haptic,
+       _sound = sound,
        _close = close,
        _now = now ?? DateTime.now;
 
@@ -47,11 +49,8 @@ class CoachingCueCoordinator {
         await player.play(BytesSource(bytes, mimeType: 'audio/mpeg'));
       },
       stop: player.stop,
-      haptic: (cue) => switch (cue) {
-        CueHaptic.depth => HapticFeedback.lightImpact(),
-        CueHaptic.warning => HapticFeedback.mediumImpact(),
-        CueHaptic.degraded => HapticFeedback.heavyImpact(),
-      },
+      haptic: (_) => HapticFeedback.heavyImpact(),
+      sound: () => SystemSound.play(SystemSoundType.alert),
       close: () async {
         await player.dispose();
         await tts.close();
@@ -70,6 +69,7 @@ class CoachingCueCoordinator {
   final Future<void> Function(Uint8List)? _play;
   final Future<void> Function()? _stop;
   final Future<void> Function(CueHaptic)? _haptic;
+  final Future<void> Function()? _sound;
   final Future<void> Function()? _close;
   final DateTime Function() _now;
   final Duration cooldown;
@@ -77,8 +77,8 @@ class CoachingCueCoordinator {
   DateTime? _lastSpokenAt;
   String? _lastSpokenText;
   int? _lastSpeechRep;
-  int? _lastHapticRep;
-  SquatCoaching? _lastHapticCoaching;
+  final Set<String> _cuedReps = {};
+  bool _foreground = true;
   String? _queuedText;
   bool _draining = false;
   int _speechGeneration = 0;
@@ -100,7 +100,6 @@ class CoachingCueCoordinator {
     SquatCoaching? coaching,
     Rep? latestRep,
   }) {
-    if (preferences.hapticsEnabled) _handleHaptic(coaching, latestRep);
     if (!preferences.ttsEnabled || coaching == null) {
       interrupt();
       return;
@@ -114,30 +113,33 @@ class CoachingCueCoordinator {
     _scheduleSpeech(text);
   }
 
+  void handleRepCue({
+    required CoachingPreferences preferences,
+    required String sessionId,
+    required Rep? latestRep,
+  }) {
+    if (latestRep == null || latestRep.status != RepStatus.degraded) return;
+    final key = '$sessionId:${latestRep.number}';
+    if (!_cuedReps.add(key) || !_foreground) return;
+    if (preferences.hapticsEnabled) {
+      unawaited(_haptic?.call(CueHaptic.degraded) ?? Future.value());
+    }
+    if (preferences.soundEnabled) {
+      unawaited(_sound?.call() ?? Future.value());
+    }
+  }
+
+  void setForeground(bool value) {
+    _foreground = value;
+    if (!value) interrupt();
+  }
+
   void speak(String text, {required bool enabled}) {
     if (!enabled) {
       interrupt();
       return;
     }
     _scheduleSpeech(text);
-  }
-
-  void _handleHaptic(SquatCoaching? coaching, Rep? rep) {
-    if (rep != null && rep.number != _lastHapticRep) {
-      _lastHapticRep = rep.number;
-      if (rep.status == RepStatus.degraded) {
-        unawaited(_haptic?.call(CueHaptic.degraded) ?? Future.value());
-      } else if (rep.status == RepStatus.warning) {
-        unawaited(_haptic?.call(CueHaptic.warning) ?? Future.value());
-      }
-      return;
-    }
-    if (coaching != _lastHapticCoaching) {
-      _lastHapticCoaching = coaching;
-      if (coaching == SquatCoaching.depthGood) {
-        unawaited(_haptic?.call(CueHaptic.depth) ?? Future.value());
-      }
-    }
   }
 
   void _scheduleSpeech(String text) {

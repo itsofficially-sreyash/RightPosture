@@ -78,7 +78,7 @@ void main() {
 
     expect(find.byType(GuidedDemoPage), findsOneWidget);
     expect(container.read(sessionControllerProvider).phase, SessionPhase.idle);
-    await tester.tap(find.byKey(const Key('close_guided_demo')));
+    Navigator.of(tester.element(find.byType(GuidedDemoPage))).pop(false);
     await tester.pumpAndSettle();
     expect(container.read(sessionControllerProvider).phase, SessionPhase.idle);
   });
@@ -299,7 +299,7 @@ void main() {
     expect(text.maxLines, 2);
   });
 
-  testWidgets('settings independently toggle voice and haptics', (
+  testWidgets('settings independently toggle voice, haptics, and sound', (
     tester,
   ) async {
     final storage = WidgetSettingsStorage();
@@ -312,11 +312,14 @@ void main() {
 
     expect(find.text('Voice coaching'), findsOneWidget);
     expect(find.text('Haptic coaching'), findsOneWidget);
+    expect(find.text('Sound cues'), findsOneWidget);
     await tester.tap(find.byKey(const Key('tts_setting')));
     await tester.tap(find.byKey(const Key('haptics_setting')));
+    await tester.tap(find.byKey(const Key('sound_setting')));
     await tester.pump();
     expect(storage.tts, isFalse);
     expect(storage.haptics, isFalse);
+    expect(storage.sound, isFalse);
   });
 
   testWidgets('settings fit compact screen at 200% text scale', (tester) async {
@@ -655,6 +658,7 @@ Rep calibrationRep(int number) => Rep(
 class WidgetSettingsStorage implements SettingsStorage {
   bool? tts;
   bool? haptics;
+  bool? sound;
 
   @override
   Future<CoachingPreferences> load() async => const CoachingPreferences();
@@ -664,4 +668,7 @@ class WidgetSettingsStorage implements SettingsStorage {
 
   @override
   Future<void> saveTts(bool value) async => tts = value;
+
+  @override
+  Future<void> saveSound(bool value) async => sound = value;
 }

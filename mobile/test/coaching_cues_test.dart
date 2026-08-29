@@ -120,43 +120,110 @@ void main() {
     },
   );
 
-  test('haptics fire once for depth, warning, and degradation', () async {
+  test('degraded rep cues once per session and rep number', () async {
     final haptics = <CueHaptic>[];
+    var sounds = 0;
     final coordinator = CoachingCueCoordinator(
       haptic: (cue) async => haptics.add(cue),
+      sound: () async => sounds++,
     );
     addTearDown(coordinator.close);
-    const preferences = CoachingPreferences(ttsEnabled: false);
+    const preferences = CoachingPreferences();
+    final degraded = Rep(
+      number: 5,
+      angles: const {},
+      status: RepStatus.degraded,
+    );
 
-    coordinator.handle(
+    coordinator.handleRepCue(
       preferences: preferences,
-      coaching: SquatCoaching.depthGood,
+      sessionId: 'squat:1',
+      latestRep: degraded,
     );
-    coordinator.handle(
+    coordinator.handleRepCue(
       preferences: preferences,
-      coaching: SquatCoaching.depthGood,
+      sessionId: 'squat:1',
+      latestRep: degraded,
     );
-    coordinator.handle(
+    coordinator.handleRepCue(
       preferences: preferences,
-      coaching: SquatCoaching.standUp,
-      latestRep: Rep(
-        number: 4,
-        angles: const {'knee': 125},
-        status: RepStatus.warning,
-      ),
+      sessionId: 'squat:1',
+      latestRep: Rep(number: 6, angles: const {}, status: RepStatus.degraded),
     );
-    coordinator.handle(
+    coordinator.handleRepCue(
       preferences: preferences,
-      coaching: SquatCoaching.standUp,
-      latestRep: Rep(
-        number: 5,
-        angles: const {'knee': 130},
-        status: RepStatus.degraded,
-      ),
+      sessionId: 'squat:2',
+      latestRep: degraded,
     );
     await Future<void>.delayed(Duration.zero);
 
-    expect(haptics, [CueHaptic.depth, CueHaptic.warning, CueHaptic.degraded]);
+    expect(haptics, [
+      CueHaptic.degraded,
+      CueHaptic.degraded,
+      CueHaptic.degraded,
+    ]);
+    expect(sounds, 3);
+  });
+
+  test('non-degraded reps and disabled channels stay silent', () async {
+    var haptics = 0;
+    var sounds = 0;
+    final coordinator = CoachingCueCoordinator(
+      haptic: (_) async => haptics++,
+      sound: () async => sounds++,
+    );
+    addTearDown(coordinator.close);
+    for (final status in [
+      RepStatus.calibrating,
+      RepStatus.good,
+      RepStatus.warning,
+    ]) {
+      coordinator.handleRepCue(
+        preferences: const CoachingPreferences(),
+        sessionId: 'squat:1',
+        latestRep: Rep(number: status.index, angles: const {}, status: status),
+      );
+    }
+    coordinator.handleRepCue(
+      preferences: const CoachingPreferences(
+        hapticsEnabled: false,
+        soundEnabled: false,
+      ),
+      sessionId: 'squat:1',
+      latestRep: Rep(number: 4, angles: const {}, status: RepStatus.degraded),
+    );
+    coordinator.handleRepCue(
+      preferences: const CoachingPreferences(),
+      sessionId: 'squat:1',
+      latestRep: Rep(number: 4, angles: const {}, status: RepStatus.degraded),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(haptics, 0);
+    expect(sounds, 0);
+  });
+
+  test('background cue is consumed and cannot replay on resume', () async {
+    var cues = 0;
+    final coordinator = CoachingCueCoordinator(
+      haptic: (_) async => cues++,
+      sound: () async => cues++,
+    );
+    addTearDown(coordinator.close);
+    final rep = Rep(number: 5, angles: const {}, status: RepStatus.degraded);
+    coordinator.setForeground(false);
+    coordinator.handleRepCue(
+      preferences: const CoachingPreferences(),
+      sessionId: 'squat:1',
+      latestRep: rep,
+    );
+    coordinator.setForeground(true);
+    coordinator.handleRepCue(
+      preferences: const CoachingPreferences(),
+      sessionId: 'squat:1',
+      latestRep: rep,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(cues, 0);
   });
 
   test('tracking interruption cancels an in-flight prompt', () async {
@@ -177,5 +244,29 @@ void main() {
     synthesis.complete(Uint8List.fromList([1]));
     await Future<void>.delayed(Duration.zero);
     expect(played, isFalse);
+  });
+
+  test('degraded cue handling never synthesizes rep speech', () async {
+    var synthesized = false;
+    final haptics = <CueHaptic>[];
+    final coordinator = CoachingCueCoordinator(
+      synthesize: (_) async {
+        synthesized = true;
+        return Uint8List(0);
+      },
+      play: (_) async {},
+      haptic: (cue) async => haptics.add(cue),
+    );
+    addTearDown(coordinator.close);
+
+    coordinator.handleRepCue(
+      preferences: const CoachingPreferences(),
+      sessionId: 'squat:1',
+      latestRep: Rep(number: 4, angles: const {}, status: RepStatus.degraded),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(synthesized, isFalse);
+    expect(haptics, [CueHaptic.degraded]);
   });
 }

@@ -24,7 +24,7 @@ class SettingsPage extends ConsumerWidget {
                   key: const Key('tts_setting'),
                   title: const Text('Voice coaching'),
                   subtitle: const Text(
-                    'Speak live exercise instructions. Requires internet.',
+                    'Speak guided and checkpoint coaching. Requires internet.',
                   ),
                   value: preferences.ttsEnabled,
                   onChanged: controller.setTtsEnabled,
@@ -32,9 +32,18 @@ class SettingsPage extends ConsumerWidget {
                 SwitchListTile(
                   key: const Key('haptics_setting'),
                   title: const Text('Haptic coaching'),
-                  subtitle: const Text('Vibrate for rep and form feedback.'),
+                  subtitle: const Text('Vibrate once for each degraded rep.'),
                   value: preferences.hapticsEnabled,
                   onChanged: controller.setHapticsEnabled,
+                ),
+                SwitchListTile(
+                  key: const Key('sound_setting'),
+                  title: const Text('Sound cues'),
+                  subtitle: const Text(
+                    'Play one short sound for each degraded rep.',
+                  ),
+                  value: preferences.soundEnabled,
+                  onChanged: controller.setSoundEnabled,
                 ),
               ],
             ),

@@ -7,22 +7,29 @@ class CoachingPreferences {
   const CoachingPreferences({
     this.ttsEnabled = true,
     this.hapticsEnabled = true,
+    this.soundEnabled = true,
   });
 
   final bool ttsEnabled;
   final bool hapticsEnabled;
+  final bool soundEnabled;
 
-  CoachingPreferences copyWith({bool? ttsEnabled, bool? hapticsEnabled}) =>
-      CoachingPreferences(
-        ttsEnabled: ttsEnabled ?? this.ttsEnabled,
-        hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
-      );
+  CoachingPreferences copyWith({
+    bool? ttsEnabled,
+    bool? hapticsEnabled,
+    bool? soundEnabled,
+  }) => CoachingPreferences(
+    ttsEnabled: ttsEnabled ?? this.ttsEnabled,
+    hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
+    soundEnabled: soundEnabled ?? this.soundEnabled,
+  );
 }
 
 abstract interface class SettingsStorage {
   Future<CoachingPreferences> load();
   Future<void> saveTts(bool value);
   Future<void> saveHaptics(bool value);
+  Future<void> saveSound(bool value);
 }
 
 class SharedPreferencesSettingsStorage implements SettingsStorage {
@@ -31,12 +38,14 @@ class SharedPreferencesSettingsStorage implements SettingsStorage {
 
   static const _ttsKey = 'coaching.tts';
   static const _hapticsKey = 'coaching.haptics';
+  static const _soundKey = 'coaching.sound';
   final SharedPreferencesAsync _preferences;
 
   @override
   Future<CoachingPreferences> load() async => CoachingPreferences(
     ttsEnabled: await _preferences.getBool(_ttsKey) ?? true,
     hapticsEnabled: await _preferences.getBool(_hapticsKey) ?? true,
+    soundEnabled: await _preferences.getBool(_soundKey) ?? true,
   );
 
   @override
@@ -45,6 +54,9 @@ class SharedPreferencesSettingsStorage implements SettingsStorage {
   @override
   Future<void> saveHaptics(bool value) =>
       _preferences.setBool(_hapticsKey, value);
+
+  @override
+  Future<void> saveSound(bool value) => _preferences.setBool(_soundKey, value);
 }
 
 final initialCoachingPreferencesProvider = Provider<CoachingPreferences>(
@@ -72,5 +84,10 @@ class SettingsController extends Notifier<CoachingPreferences> {
   void setHapticsEnabled(bool value) {
     state = state.copyWith(hapticsEnabled: value);
     unawaited(ref.read(settingsStorageProvider).saveHaptics(value));
+  }
+
+  void setSoundEnabled(bool value) {
+    state = state.copyWith(soundEnabled: value);
+    unawaited(ref.read(settingsStorageProvider).saveSound(value));
   }
 }

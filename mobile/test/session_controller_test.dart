@@ -52,6 +52,44 @@ void main() {
     );
   });
 
+  test('set target survives preparation and countdown', () {
+    controller.prepareSession();
+    controller.setTargetRepCount(10);
+    const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
+    for (var index = 0; index < 3; index++) {
+      controller.acceptPreparationResult(ready);
+    }
+    expect(container.read(sessionControllerProvider).targetRepCount, 10);
+    controller.advanceCountdown();
+    controller.advanceCountdown();
+    controller.advanceCountdown();
+    final state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.tracking);
+    expect(state.targetRepCount, 10);
+  });
+
+  test('every implemented exercise keeps target through countdown', () {
+    const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
+    for (final exercise in [
+      ExerciseId.squat,
+      ExerciseId.bicepCurl,
+      ExerciseId.lateralRaise,
+      ExerciseId.shoulderPress,
+    ]) {
+      controller.prepareSession(exercise: exercise);
+      controller.setTargetRepCount(8);
+      for (var i = 0; i < 3; i++) {
+        controller.acceptPreparationResult(ready);
+      }
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.selectedExercise, exercise);
+      expect(state.phase, SessionPhase.countdown);
+      expect(state.targetRepCount, 8);
+      controller.reset();
+    }
+  });
+
   test('all implemented exercises share automatic countdown', () {
     const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
     for (final exercise in [
