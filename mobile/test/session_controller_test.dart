@@ -68,6 +68,81 @@ void main() {
     expect(state.targetRepCount, 10);
   });
 
+  test('finite target automatically completes every implemented exercise', () {
+    for (final exercise in [
+      ExerciseId.squat,
+      ExerciseId.bicepCurl,
+      ExerciseId.lateralRaise,
+      ExerciseId.shoulderPress,
+    ]) {
+      controller.prepareSession(exercise: exercise);
+      controller.setTargetRepCount(1);
+      controller.startTracking();
+
+      switch (exercise) {
+        case ExerciseId.squat:
+          completeRep(controller, 100);
+        case ExerciseId.bicepCurl:
+          repeatCurl(controller, 165, 165);
+          repeatCurl(controller, 70, 75);
+          repeatCurl(controller, 165, 165);
+        case ExerciseId.lateralRaise:
+          repeatLateralRaise(controller, 10, 10);
+          repeatLateralRaise(controller, 90, 90);
+          repeatLateralRaise(controller, 10, 10);
+        case ExerciseId.shoulderPress:
+          repeatShoulderPress(controller, 95, 95, 90);
+          repeatShoulderPress(controller, 165, 165, 170);
+          repeatShoulderPress(controller, 95, 95, 90);
+        default:
+          fail('${exercise.name} is not an implemented tracking exercise.');
+      }
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.phase, SessionPhase.complete, reason: exercise.name);
+      expect(state.reps, hasLength(1), reason: exercise.name);
+      expect(state.workout.completedSets, hasLength(1), reason: exercise.name);
+      controller.reset();
+    }
+  });
+
+  test('open target continues until the user explicitly ends the set', () {
+    controller.startTracking();
+    completeRep(controller, 100);
+
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.tracking,
+    );
+    expect(
+      container.read(sessionControllerProvider).workout.completedSets,
+      isEmpty,
+    );
+
+    controller.endSession();
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.complete,
+    );
+    expect(
+      container.read(sessionControllerProvider).workout.completedSets,
+      hasLength(1),
+    );
+  });
+
+  test('user can explicitly end a finite target before reaching it', () {
+    controller.prepareSession();
+    controller.setTargetRepCount(8);
+    controller.startTracking();
+    completeRep(controller, 100);
+    controller.endSession();
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.phase, SessionPhase.complete);
+    expect(state.summary?.totalReps, 1);
+    expect(state.workout.completedSets, hasLength(1));
+  });
+
   test('every implemented exercise keeps target through countdown', () {
     const ready = PlacementResult(PlacementStatus.ready, 'Position ready');
     for (final exercise in [

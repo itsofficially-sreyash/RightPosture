@@ -14,6 +14,7 @@ import 'package:right_posture/ui/app_theme.dart';
 import 'package:right_posture/ui/exercise_select_page.dart';
 import 'package:right_posture/ui/guided_demo_page.dart';
 import 'package:right_posture/ui/session_summary_page.dart';
+import 'package:right_posture/ui/session_flow.dart';
 import 'package:right_posture/ui/settings_page.dart';
 import 'package:right_posture/ui/workout_summary_page.dart';
 
@@ -202,6 +203,64 @@ void main() {
     expect(find.textContaining('squat', findRichText: true), findsNothing);
   });
 
+  testWidgets('preparation target picker preserves open and numbered sets', (
+    tester,
+  ) async {
+    int? selected = 10;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: PreparationHud(
+            state: SessionState(
+              phase: SessionPhase.preparing,
+              selectedExercise: ExerciseId.squat,
+              targetRepCount: selected,
+            ),
+            exerciseName: 'Squat',
+            instruction: squatExerciseProfile.setupInstruction,
+            onStart: () {},
+            onTargetChanged: (value) => selected = value,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('target_8')), findsOneWidget);
+    expect(find.byKey(const Key('target_10')), findsOneWidget);
+    expect(find.byKey(const Key('target_12')), findsOneWidget);
+    expect(find.byKey(const Key('target_open')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('target_open')));
+    expect(selected, isNull);
+  });
+
+  testWidgets('camera session controls close and switch when available', (
+    tester,
+  ) async {
+    var closed = false;
+    var switched = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: CameraSessionTopBar(
+            status: PosePipelineStatus.ready,
+            tracking: true,
+            canSwitchCamera: true,
+            onClose: () => closed = true,
+            onSwitchCamera: () => switched = true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('TRACKING'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('close_camera_session')));
+    await tester.tap(find.byKey(const Key('camera_switch_button')));
+    expect(closed, isTrue);
+    expect(switched, isTrue);
+  });
+
   testWidgets('lateral raise preparation contains correct copy', (
     tester,
   ) async {
@@ -275,6 +334,44 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     await tester.tap(find.byKey(const Key('end_session')));
     expect(ended, isTrue);
+  });
+
+  testWidgets('ending a set replaces camera flow without lifecycle errors', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        historyStorageProvider.overrideWithValue(
+          HistoryStorage(VisitedHistoryBackend()),
+        ),
+        initialCoachingPreferencesProvider.overrideWithValue(
+          const CoachingPreferences(ttsEnabled: false),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(sessionControllerProvider.notifier)
+      ..prepareSession(exercise: ExerciseId.squat)
+      ..startTracking();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(theme: buildAppTheme(), home: const SessionFlow()),
+      ),
+    );
+
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.tracking,
+    );
+    expect(find.byKey(const Key('end_session')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('end_session')));
+    await tester.pump();
+
+    expect(controller.state.phase, SessionPhase.complete);
+    expect(find.byType(SessionSummaryPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('live HUD shows compact coaching text', (tester) async {
@@ -419,6 +516,11 @@ void main() {
         home: SessionSummaryView(state: state, onRestart: () {}),
       ),
     );
+    expect(
+      tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+      AppColors.background,
+    );
+    expect(find.text('SET COMPLETE'), findsOneWidget);
     expect(find.text('0%'), findsOneWidget);
     expect(
       find.textContaining('Form degradation detected from rep 4'),
@@ -432,6 +534,12 @@ void main() {
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -100));
     await tester.pumpAndSettle();
     expect(find.text('Rep 4 · degraded'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('next_set')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('START NEXT SET'), findsOneWidget);
 
     await tester.pumpWidget(
       MaterialApp(

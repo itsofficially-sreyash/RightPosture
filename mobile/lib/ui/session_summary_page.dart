@@ -86,56 +86,100 @@ class SessionSummaryView extends StatelessWidget {
     final exerciseName = const ExerciseRegistry()
         .profileFor(state.selectedExercise)
         .displayName;
+    final setNumber = state.workout.completedSets.length;
     return Scaffold(
-      backgroundColor: AppColors.lime,
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        backgroundColor: AppColors.surfaceGlass,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'RIGHT POSTURE',
+          style: TextStyle(
+            color: AppColors.lime,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
+            constraints: const BoxConstraints(maxWidth: 760),
             child: CustomScrollView(
               slivers: [
                 SliverPadding(
                   padding: const EdgeInsets.all(AppSpacing.large),
                   sliver: SliverList.list(
                     children: [
-                      const SizedBox(height: AppSpacing.medium),
-                      Text(
-                        exerciseName,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.background,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.small),
-                      Semantics(
-                        header: true,
-                        child: Text(
-                          degraded ? 'Set reviewed' : 'Set complete',
-                          style: Theme.of(context).textTheme.headlineLarge
-                              ?.copyWith(color: AppColors.background),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.large),
-                      Semantics(
-                        label: score == null
-                            ? 'Form score unavailable. Not enough data.'
-                            : 'Form score ${score.round()} percent',
-                        child: ExcludeSemantics(
-                          child: Text(
-                            score == null
-                                ? 'Not enough data'
-                                : '${score.round()}%',
-                            style: Theme.of(context).textTheme.displayLarge
-                                ?.copyWith(color: AppColors.background),
+                      Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withValues(alpha: 0.1),
+                              border: Border.all(
+                                color: AppColors.success.withValues(
+                                  alpha: 0.35,
+                                ),
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                            ),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: AppColors.success,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: AppSpacing.small),
+                                  Text(
+                                    'SET COMPLETE',
+                                    style: TextStyle(
+                                      color: AppColors.success,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
+                      const SizedBox(height: AppSpacing.medium),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          exerciseName,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineLarge,
+                        ),
+                      ),
                       const SizedBox(height: AppSpacing.small),
                       Text(
-                        '${summary?.totalReps ?? 0} total reps',
+                        setNumber == 0
+                            ? 'Post-set review'
+                            : 'Set $setNumber completed',
+                        textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.background,
-                          fontWeight: FontWeight.w700,
+                          color: AppColors.textMuted,
                         ),
+                      ),
+                      const SizedBox(height: AppSpacing.large),
+                      _PrimaryMetrics(
+                        reps: summary?.totalReps ?? 0,
+                        score: score,
                       ),
                       if (degraded) ...[
                         const SizedBox(height: AppSpacing.medium),
@@ -152,9 +196,7 @@ class SessionSummaryView extends StatelessWidget {
                       const SizedBox(height: AppSpacing.large),
                       Text(
                         'Rep checklist',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.background,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: AppSpacing.small),
                       if (state.reps.isEmpty)
@@ -171,26 +213,25 @@ class SessionSummaryView extends StatelessWidget {
                           ),
                         ),
                       const SizedBox(height: AppSpacing.extraLarge),
+                      // Weight, set targets, and timed rest require user input
+                      // and stored workout fields. Keep those mockup controls
+                      // out until the app can preserve their real values.
                       FilledButton(
                         key: const Key('next_set'),
                         onPressed: onRestart,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.background,
-                          foregroundColor: AppColors.lime,
-                        ),
-                        child: const Text('Next set'),
+                        child: const Text('START NEXT SET'),
                       ),
                       const SizedBox(height: AppSpacing.medium),
                       OutlinedButton(
                         key: const Key('change_exercise'),
                         onPressed: onChangeExercise ?? onRestart,
-                        child: const Text('Change exercise'),
+                        child: const Text('CHANGE EXERCISE'),
                       ),
                       const SizedBox(height: AppSpacing.medium),
                       OutlinedButton(
                         key: const Key('finish_workout'),
                         onPressed: onFinishWorkout ?? onRestart,
-                        child: const Text('Finish workout'),
+                        child: const Text('FINISH WORKOUT'),
                       ),
                       const SizedBox(height: AppSpacing.medium),
                     ],
@@ -204,6 +245,117 @@ class SessionSummaryView extends StatelessWidget {
     );
   }
 }
+
+class _PrimaryMetrics extends StatelessWidget {
+  const _PrimaryMetrics({required this.reps, required this.score});
+
+  final int reps;
+  final double? score;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cards = [
+          _HeroMetric(
+            semanticsLabel: '$reps reps completed',
+            label: 'REPS COMPLETED',
+            value: '$reps',
+            accent: AppColors.lime,
+          ),
+          _HeroMetric(
+            semanticsLabel: score == null
+                ? 'Form score unavailable. Not enough data.'
+                : 'Form score ${score!.round()} percent',
+            label: 'FORM SCORE',
+            value: score == null ? 'Not enough data' : '${score!.round()}%',
+            accent: score == null ? AppColors.textMuted : _scoreColor(score!),
+          ),
+        ];
+        if (constraints.maxWidth < 420) {
+          return Column(
+            children: [
+              cards.first,
+              const SizedBox(height: AppSpacing.medium),
+              cards.last,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: cards.first),
+            const SizedBox(width: AppSpacing.medium),
+            Expanded(child: cards.last),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _HeroMetric extends StatelessWidget {
+  const _HeroMetric({
+    required this.semanticsLabel,
+    required this.label,
+    required this.value,
+    required this.accent,
+  });
+
+  final String semanticsLabel;
+  final String label;
+  final String value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semanticsLabel,
+      child: ExcludeSemantics(
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 176),
+          padding: const EdgeInsets.all(AppSpacing.medium),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceElevated,
+            border: Border.all(color: AppColors.outlineVariant),
+            borderRadius: BorderRadius.circular(AppRadius.medium),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.small),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                    color: accent,
+                    fontSize: 76,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Color _scoreColor(double score) => switch (score) {
+  >= 80 => AppColors.success,
+  >= 60 => AppColors.warning,
+  _ => AppColors.degraded,
+};
 
 class _QualityDistribution extends StatelessWidget {
   const _QualityDistribution({required this.summary});
@@ -247,12 +399,7 @@ class _ScoreBreakdown extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Score breakdown',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(color: AppColors.background),
-        ),
+        Text('Score breakdown', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: AppSpacing.small),
         Card(
           child: Padding(
@@ -318,12 +465,7 @@ class _RepTimeline extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Rep timeline',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(color: AppColors.background),
-        ),
+        Text('Rep timeline', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: AppSpacing.small),
         if (reps.isEmpty)
           const Text('No reps recorded.')

@@ -56,6 +56,30 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     _pipeline = PosePipeline(
       exercise: ref.read(sessionControllerProvider).selectedExercise,
     )..addListener(_refresh);
+    ref.listenManual(sessionControllerProvider, (_, next) {
+      _cues.handleRepCue(
+        preferences: ref.read(settingsControllerProvider),
+        sessionId:
+            '${next.selectedExercise.name}:'
+            '${next.workout.completedSets.length + 1}',
+        latestRep: next.latestFeedback,
+      );
+      if (next.phase == SessionPhase.tracking && _preSetSpeech == null) {
+        _preSetSpeech = _speakPreSet(next);
+      }
+      if (next.phase == SessionPhase.tracking &&
+          _midpoint.shouldFire(
+            completedReps: next.reps.length,
+            targetRepCount: next.targetRepCount,
+          )) {
+        unawaited(_speakMidSet(next));
+      }
+    });
+    ref.listenManual(settingsControllerProvider, (previous, next) {
+      if (next.ttsEnabled && !(previous?.ttsEnabled ?? false)) {
+        unawaited(_cues.prepare());
+      }
+    });
     unawaited(_pipeline.start());
   }
 
@@ -168,30 +192,6 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
     final profile = const ExerciseRegistry().profileFor(
       session.selectedExercise,
     );
-    ref.listen(sessionControllerProvider, (_, next) {
-      _cues.handleRepCue(
-        preferences: ref.read(settingsControllerProvider),
-        sessionId:
-            '${next.selectedExercise.name}:'
-            '${next.workout.completedSets.length + 1}',
-        latestRep: next.latestFeedback,
-      );
-      if (next.phase == SessionPhase.tracking && _preSetSpeech == null) {
-        _preSetSpeech = _speakPreSet(next);
-      }
-      if (next.phase == SessionPhase.tracking &&
-          _midpoint.shouldFire(
-            completedReps: next.reps.length,
-            targetRepCount: next.targetRepCount,
-          )) {
-        unawaited(_speakMidSet(next));
-      }
-    });
-    ref.listen(settingsControllerProvider, (previous, next) {
-      if (next.ttsEnabled && !(previous?.ttsEnabled ?? false)) {
-        unawaited(_cues.prepare());
-      }
-    });
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -208,6 +208,17 @@ class _PoseCameraPageState extends ConsumerState<PoseCameraPage>
                 onSwitchCamera: _switchCamera,
                 onRetry: _retry,
                 onOpenSettings: _openSettings,
+                showCameraControls: false,
+              ),
+              Align(
+                alignment: Alignment.topCenter,
+                child: CameraSessionTopBar(
+                  status: _pipelineStatus,
+                  tracking: session.phase == SessionPhase.tracking,
+                  canSwitchCamera: _pipeline.canSwitchCamera,
+                  onClose: ref.read(sessionControllerProvider.notifier).reset,
+                  onSwitchCamera: _switchCamera,
+                ),
               ),
               if ((session.phase == SessionPhase.preparing ||
                       session.phase == SessionPhase.countdown) &&
@@ -297,79 +308,101 @@ class PreparationHud extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final countdown = state.countdownValue;
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: 720,
-        maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.medium,
+        88,
+        AppSpacing.medium,
+        AppSpacing.medium,
       ),
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: Color(0xEE15161B),
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppRadius.large),
-          ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 440,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.72,
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.medium),
           child: countdown == null
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Set up your $exerciseName',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: AppSpacing.small),
-                    Text(instruction),
-                    const SizedBox(height: AppSpacing.medium),
-                    Text(
-                      'Set target',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.small),
-                    Wrap(
-                      spacing: AppSpacing.small,
-                      runSpacing: AppSpacing.small,
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceGlass,
+                    borderRadius: BorderRadius.circular(AppRadius.large),
+                    border: Border.all(color: AppColors.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.large),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        for (final target in const <int?>[null, 8, 10, 12])
-                          ChoiceChip(
-                            label: Text(
-                              target == null ? 'Open' : '$target reps',
-                            ),
-                            selected: state.targetRepCount == target,
-                            onSelected: onTargetChanged == null
-                                ? null
-                                : (selected) {
-                                    if (selected) onTargetChanged!(target);
-                                  },
+                        Text(
+                          'Set up your $exerciseName',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineLarge
+                              ?.copyWith(color: AppColors.lime),
+                        ),
+                        const SizedBox(height: AppSpacing.small),
+                        Text(
+                          instruction,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: AppColors.textMuted),
+                        ),
+                        const SizedBox(height: AppSpacing.medium),
+                        const Divider(color: AppColors.outlineVariant),
+                        const SizedBox(height: AppSpacing.small),
+                        const Text(
+                          'TARGET REPS',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
                           ),
+                        ),
+                        const SizedBox(height: AppSpacing.small),
+                        _RepTargetPicker(
+                          selected: state.targetRepCount,
+                          onChanged: onTargetChanged,
+                        ),
+                        const SizedBox(height: AppSpacing.medium),
+                        Semantics(
+                          liveRegion: true,
+                          label: state.placementGuidance,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                state.placementStable
+                                    ? Icons.check_circle
+                                    : Icons.center_focus_weak,
+                                color: state.placementStable
+                                    ? AppColors.success
+                                    : AppColors.warning,
+                              ),
+                              const SizedBox(width: AppSpacing.small),
+                              Expanded(
+                                child: Text(
+                                  state.placementGuidance ??
+                                      'Checking camera position',
+                                  key: const Key('placement_guidance'),
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.medium),
+                        FilledButton.icon(
+                          key: const Key('start_set'),
+                          onPressed: state.placementStable ? onStart : null,
+                          icon: const Icon(Icons.play_arrow),
+                          label: const Text('START SET'),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: AppSpacing.small),
-                    Text(
-                      state.targetRepCount == null
-                          ? 'Open set: coaching check at rep 5'
-                          : 'Coaching check at rep '
-                                '${(state.targetRepCount! / 2).ceil()}',
-                    ),
-                    const SizedBox(height: AppSpacing.medium),
-                    Semantics(
-                      liveRegion: true,
-                      label: state.placementGuidance,
-                      child: Text(
-                        state.placementGuidance ?? 'Checking position',
-                        key: const Key('placement_guidance'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.medium),
-                    FilledButton(
-                      key: const Key('start_set'),
-                      onPressed: state.placementStable ? onStart : null,
-                      child: const Text('Start set'),
-                    ),
-                  ],
+                  ),
                 )
               : Semantics(
                   liveRegion: true,
@@ -378,11 +411,175 @@ class PreparationHud extends StatelessWidget {
                     '$countdown',
                     key: const Key('countdown_value'),
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.displayLarge,
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      color: AppColors.lime,
+                      fontSize: 112,
+                    ),
                   ),
                 ),
         ),
       ),
+    );
+  }
+}
+
+class _RepTargetPicker extends StatelessWidget {
+  const _RepTargetPicker({required this.selected, required this.onChanged});
+
+  final int? selected;
+  final ValueChanged<int?>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final target in const <int?>[8, 10, 12, null]) ...[
+          if (target != 8) const SizedBox(width: AppSpacing.small),
+          Expanded(
+            child: Semantics(
+              selected: selected == target,
+              button: true,
+              label: target == null ? 'Open set' : '$target repetitions',
+              child: ChoiceChip(
+                key: Key('target_${target ?? 'open'}'),
+                showCheckmark: false,
+                label: SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    target == null ? '∞' : '$target',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                selected: selected == target,
+                onSelected: onChanged == null
+                    ? null
+                    : (value) {
+                        if (value) onChanged!(target);
+                      },
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class CameraSessionTopBar extends StatelessWidget {
+  const CameraSessionTopBar({
+    super.key,
+    required this.status,
+    required this.tracking,
+    required this.canSwitchCamera,
+    required this.onClose,
+    required this.onSwitchCamera,
+  });
+
+  final PosePipelineStatus status;
+  final bool tracking;
+  final bool canSwitchCamera;
+  final VoidCallback onClose;
+  final VoidCallback onSwitchCamera;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      PosePipelineStatus.initializing => ('STARTING CAMERA', AppColors.warning),
+      PosePipelineStatus.ready => (
+        tracking ? 'TRACKING' : 'CAMERA READY',
+        tracking ? AppColors.degraded : AppColors.success,
+      ),
+      PosePipelineStatus.noPerson => ('WAITING FOR USER', AppColors.warning),
+      PosePipelineStatus.lowConfidence => (
+        'ADJUST POSITION',
+        AppColors.warning,
+      ),
+      PosePipelineStatus.failed => ('CAMERA ERROR', AppColors.degraded),
+    };
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.medium),
+      child: Row(
+        children: [
+          _CameraActionButton(
+            key: const Key('close_camera_session'),
+            tooltip: 'Close workout',
+            icon: Icons.close,
+            onPressed: onClose,
+          ),
+          const Spacer(),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceGlass,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(color: AppColors.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.medium,
+                vertical: AppSpacing.small,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.small),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Spacer(),
+          _CameraActionButton(
+            key: const Key('camera_switch_button'),
+            tooltip: 'Switch camera',
+            icon: Icons.cameraswitch_outlined,
+            onPressed: canSwitchCamera ? onSwitchCamera : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CameraActionButton extends StatelessWidget {
+  const _CameraActionButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        backgroundColor: AppColors.surfaceGlass,
+        foregroundColor: AppColors.lime,
+        disabledForegroundColor: AppColors.textMuted,
+        side: const BorderSide(color: AppColors.outlineVariant),
+      ),
+      icon: Icon(icon),
     );
   }
 }
@@ -394,12 +591,14 @@ class PoseCameraSurface extends StatelessWidget {
     required this.onSwitchCamera,
     required this.onRetry,
     required this.onOpenSettings,
+    this.showCameraControls = true,
   });
 
   final PosePipeline pipeline;
   final VoidCallback onSwitchCamera;
   final VoidCallback onRetry;
   final VoidCallback onOpenSettings;
+  final bool showCameraControls;
 
   @override
   Widget build(BuildContext context) {
@@ -452,17 +651,18 @@ class PoseCameraSurface extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(
-              top: 12,
-              left: 12,
-              child: PosePipelineStatusPanel(
-                snapshot: snapshot,
-                exercise: pipeline.exercise,
-                onRetry: onRetry,
-                onOpenSettings: onOpenSettings,
+            if (showCameraControls)
+              Positioned(
+                top: 12,
+                left: 12,
+                child: PosePipelineStatusPanel(
+                  snapshot: snapshot,
+                  exercise: pipeline.exercise,
+                  onRetry: onRetry,
+                  onOpenSettings: onOpenSettings,
+                ),
               ),
-            ),
-            if (pipeline.canSwitchCamera)
+            if (showCameraControls && pipeline.canSwitchCamera)
               Positioned(
                 top: 12,
                 right: 12,
@@ -542,127 +742,219 @@ class LiveSessionHud extends StatelessWidget {
         _ => (Icons.track_changes, AppColors.lime, 'Tracking'),
       },
     };
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: 720,
-        maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.medium,
+        88,
+        AppSpacing.medium,
+        AppSpacing.medium,
       ),
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: Color(0xEE15161B),
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppRadius.large),
-          ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 720,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.72,
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.medium),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (coaching != null) ...[
-                Semantics(
-                  liveRegion: true,
-                  label: coachingText(coaching),
-                  child: AnimatedSwitcher(
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 180),
-                    transitionBuilder: (child, animation) => FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(
-                        scale: Tween<double>(begin: 0.96, end: 1).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOut,
+              Semantics(
+                liveRegion: true,
+                label: coaching == null ? status : coachingText(coaching),
+                child: AnimatedSwitcher(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
+                  child: _CoachingToast(
+                    key: ValueKey(coaching ?? status),
+                    icon: coaching == null ? icon : Icons.info_outline,
+                    color: coaching == null ? color : AppColors.cyan,
+                    message: coaching == null ? status : coachingText(coaching),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.small),
+              Semantics(
+                label: state.targetRepCount == null
+                    ? '${state.reps.length} repetitions, open target'
+                    : '${state.reps.length} of ${state.targetRepCount} repetitions',
+                child: ExcludeSemantics(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '${state.reps.length}',
+                            style: Theme.of(context).textTheme.displayLarge
+                                ?.copyWith(
+                                  color: AppColors.lime,
+                                  fontSize: 120,
+                                  height: 0.95,
+                                ),
                           ),
                         ),
-                        child: child,
                       ),
-                    ),
-                    child: DecoratedBox(
-                      key: ValueKey(coaching),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceElevated,
-                        borderRadius: BorderRadius.circular(AppRadius.medium),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.medium,
-                          vertical: AppSpacing.small,
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: AppSpacing.small,
+                          bottom: AppSpacing.medium,
                         ),
                         child: Text(
-                          coachingText(coaching),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge,
+                          state.targetRepCount == null
+                              ? '/ ∞'
+                              : '/ ${state.targetRepCount}',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(color: AppColors.textMuted),
                         ),
                       ),
-                    ),
+                    ],
+                  ),
+                ),
+              ),
+              if (calibrationCount < 3) ...[
+                Semantics(
+                  label: '$calibrationCount of 3 calibration reps complete',
+                  child: LinearProgressIndicator(
+                    value: calibrationCount / 3,
+                    color: AppColors.cyan,
+                    backgroundColor: AppColors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.small),
               ],
-              Row(
-                children: [
-                  Semantics(
-                    label: '${state.reps.length} repetitions',
-                    child: ExcludeSemantics(
-                      child: Text(
-                        '${state.reps.length}',
-                        style: Theme.of(context).textTheme.displayLarge,
+              if (!trackingInterrupted && latestFeedbackText != null) ...[
+                Text(
+                  latestFeedbackText,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.small),
+              ],
+              _RepProgressTimeline(
+                completed: state.reps.length,
+                target: state.targetRepCount,
+              ),
+              const SizedBox(height: AppSpacing.medium),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 200),
+                  child: OutlinedButton.icon(
+                    key: const Key('end_session'),
+                    onPressed: onEnd,
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    label: const Text('END SET'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoachingToast extends StatelessWidget {
+  const _CoachingToast({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.message,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceGlass,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        border: Border(top: BorderSide(color: color, width: 4)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.medium,
+          vertical: AppSpacing.small,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: AppSpacing.small),
+            Flexible(
+              child: Text(
+                message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RepProgressTimeline extends StatelessWidget {
+  const _RepProgressTimeline({required this.completed, required this.target});
+
+  final int completed;
+  final int? target;
+
+  @override
+  Widget build(BuildContext context) {
+    final nodeCount = target ?? (completed < 5 ? 5 : completed.clamp(5, 12));
+    return Semantics(
+      label: target == null
+          ? '$completed repetitions completed in open set'
+          : '$completed of $target repetitions completed',
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceGlass,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(color: AppColors.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.medium,
+              vertical: AppSpacing.small,
+            ),
+            child: Row(
+              children: [
+                for (var index = 0; index < nodeCount; index++) ...[
+                  if (index > 0)
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        color: index <= completed
+                            ? AppColors.cyan
+                            : AppColors.outlineVariant,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.medium),
-                  Expanded(
-                    child: Semantics(
-                      liveRegion: true,
-                      label: status,
-                      child: Row(
-                        children: [
-                          Icon(icon, color: color),
-                          const SizedBox(width: AppSpacing.small),
-                          Flexible(
-                            child: Text(
-                              status,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ),
-                        ],
-                      ),
+                  Container(
+                    width: index < completed ? 12 : 8,
+                    height: index < completed ? 12 : 8,
+                    decoration: BoxDecoration(
+                      color: index < completed
+                          ? AppColors.lime
+                          : AppColors.outlineVariant,
+                      shape: BoxShape.circle,
                     ),
                   ),
                 ],
-              ),
-              if (calibrationCount < 3) ...[
-                const SizedBox(height: AppSpacing.small),
-                Semantics(
-                  label: '$calibrationCount of 3 calibration reps complete',
-                  child: LinearProgressIndicator(value: calibrationCount / 3),
-                ),
               ],
-              if (!trackingInterrupted && latestFeedbackText != null) ...[
-                const SizedBox(height: AppSpacing.small),
-                Text(
-                  latestFeedbackText,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-              const SizedBox(height: AppSpacing.medium),
-              OutlinedButton(
-                key: const Key('end_session'),
-                onPressed: onEnd,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(48, 52),
-                  foregroundColor: AppColors.textPrimary,
-                  side: const BorderSide(color: AppColors.textMuted),
-                  shape: const StadiumBorder(),
-                ),
-                child: const Text('End set'),
-              ),
-            ],
+            ),
           ),
         ),
       ),

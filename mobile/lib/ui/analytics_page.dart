@@ -38,7 +38,16 @@ class _AnalyticsPageState extends ConsumerState<AnalyticsPage> {
   Widget build(BuildContext context) {
     final history = ref.watch(historyProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Analytics')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        centerTitle: true,
+        backgroundColor: AppColors.surfaceGlass,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'RIGHT POSTURE',
+          style: TextStyle(color: AppColors.lime, fontWeight: FontWeight.w800),
+        ),
+      ),
       body: SafeArea(
         child: history.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -116,80 +125,108 @@ class _AnalyticsContent extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.all(AppSpacing.large),
-          sliver: SliverList.list(
-            children: [
-              DropdownButtonFormField<ExerciseId>(
-                key: const Key('analytics_exercise_filter'),
-                initialValue: exercise,
-                decoration: const InputDecoration(labelText: 'Exercise'),
-                items: _AnalyticsPageState._exercises
-                    .map(
-                      (id) => DropdownMenuItem(
-                        value: id,
-                        child: Text(
-                          const ExerciseRegistry().profileFor(id).displayName,
-                        ),
+          padding: const EdgeInsets.all(AppSpacing.medium),
+          sliver: SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Performance History',
+                      style: Theme.of(context).textTheme.headlineLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.base),
+                    Text(
+                      'Review your movement quality and training progression.',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.textMuted,
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) onExerciseChanged(value);
-                },
-              ),
-              const SizedBox(height: AppSpacing.large),
-              Text(
-                '${profile.displayName} history',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: AppSpacing.medium),
-              _WeeklyCard(summary: week, ranking: ranking, streak: streak),
-              const SizedBox(height: AppSpacing.medium),
-              _ProgressInsightsCard(
-                insights: progress,
-                onOpenEvidence: openEvidence,
-              ),
-              const SizedBox(height: AppSpacing.medium),
-              _RecordsCard(
-                bestSetResult: setRecord,
-                bestSessionResult: sessionRecord,
-                records: records,
-                onOpenEvidence: openEvidence,
-              ),
-              const SizedBox(height: AppSpacing.medium),
-              _FeedbackInsightsCard(
-                insights: feedback,
-                onOpenEvidence: openEvidence,
-              ),
-              const SizedBox(height: AppSpacing.large),
-              _ActivityCalendar(
-                days: days,
-                selectedDay: selectedDay,
-                onSelected: onDaySelected,
-              ),
-              if (selectedDay != null) ...[
-                const SizedBox(height: AppSpacing.medium),
-                _DayJournal(
-                  day: selectedDay!,
-                  workouts: selectedWorkouts,
-                  onHistoryChanged: onHistoryChanged,
+                    ),
+                    const SizedBox(height: AppSpacing.medium),
+                    SingleChildScrollView(
+                      key: const Key('analytics_exercise_filter'),
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final id in _AnalyticsPageState._exercises) ...[
+                            ChoiceChip(
+                              key: Key('analytics_${id.name}'),
+                              label: Text(
+                                const ExerciseRegistry()
+                                    .profileFor(id)
+                                    .displayName,
+                              ),
+                              selected: exercise == id,
+                              onSelected: (_) => onExerciseChanged(id),
+                            ),
+                            if (id != _AnalyticsPageState._exercises.last)
+                              const SizedBox(width: AppSpacing.small),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.extraLarge),
+                    Text(
+                      '${profile.displayName} overview',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.medium),
+                    _WeeklyCard(
+                      summary: week,
+                      ranking: ranking,
+                      streak: streak,
+                    ),
+                    const SizedBox(height: AppSpacing.medium),
+                    _ProgressInsightsCard(
+                      insights: progress,
+                      onOpenEvidence: openEvidence,
+                    ),
+                    const SizedBox(height: AppSpacing.medium),
+                    _RecordsCard(
+                      bestSetResult: setRecord,
+                      bestSessionResult: sessionRecord,
+                      records: records,
+                      onOpenEvidence: openEvidence,
+                    ),
+                    const SizedBox(height: AppSpacing.medium),
+                    _FeedbackInsightsCard(
+                      insights: feedback,
+                      onOpenEvidence: openEvidence,
+                    ),
+                    const SizedBox(height: AppSpacing.large),
+                    _ActivityCalendar(
+                      days: days,
+                      selectedDay: selectedDay,
+                      onSelected: onDaySelected,
+                    ),
+                    if (selectedDay != null) ...[
+                      const SizedBox(height: AppSpacing.medium),
+                      _DayJournal(
+                        day: selectedDay!,
+                        workouts: selectedWorkouts,
+                        onHistoryChanged: onHistoryChanged,
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.large),
+                    for (final metric in AnalyticsMetric.values) ...[
+                      _TrendCard(
+                        title: _metricTitle(metric),
+                        unit: _metricUnit(metric),
+                        points: metricSeries(workouts, exercise, metric),
+                      ),
+                      const SizedBox(height: AppSpacing.medium),
+                    ],
+                    _QualityCard(
+                      distribution: qualityDistribution(workouts, exercise),
+                    ),
+                    const SizedBox(height: AppSpacing.medium),
+                    _IssueCard(counts: issueFrequency(workouts, exercise)),
+                  ],
                 ),
-              ],
-              const SizedBox(height: AppSpacing.large),
-              for (final metric in AnalyticsMetric.values) ...[
-                _TrendCard(
-                  title: _metricTitle(metric),
-                  unit: _metricUnit(metric),
-                  points: metricSeries(workouts, exercise, metric),
-                ),
-                const SizedBox(height: AppSpacing.medium),
-              ],
-              _QualityCard(
-                distribution: qualityDistribution(workouts, exercise),
               ),
-              const SizedBox(height: AppSpacing.medium),
-              _IssueCard(counts: issueFrequency(workouts, exercise)),
-            ],
+            ),
           ),
         ),
       ],
@@ -210,34 +247,132 @@ class _WeeklyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.medium),
-        child: Wrap(
-          spacing: AppSpacing.large,
-          runSpacing: AppSpacing.small,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth < 600
+            ? (constraints.maxWidth - AppSpacing.small) / 2
+            : (constraints.maxWidth - AppSpacing.medium * 3) / 4;
+        return Wrap(
+          spacing: constraints.maxWidth < 600
+              ? AppSpacing.small
+              : AppSpacing.medium,
+          runSpacing: AppSpacing.medium,
           children: [
-            Text('${summary.sets} sets this week'),
-            Text('${summary.reps} reps'),
-            Text(
-              'Average Form Score: '
-              '${summary.averageFormScore == null ? 'Unavailable' : '${summary.averageFormScore!.round()}%'}',
+            _AnalyticsStat(
+              width: width,
+              label: 'SETS THIS WEEK',
+              value: '${summary.sets}',
+              detail: '${summary.reps} reps',
+              color: AppColors.cyan,
             ),
-            Text(
-              'Latest activity streak: $streak day${streak == 1 ? '' : 's'}',
+            _AnalyticsStat(
+              width: width,
+              label: 'AVG FORM SCORE',
+              value: summary.averageFormScore == null
+                  ? '—'
+                  : '${summary.averageFormScore!.round()}%',
+              detail: summary.averageFormScore == null
+                  ? 'Unavailable'
+                  : 'Tracked sets',
+              color: AppColors.lime,
             ),
-            if (ranking.tied)
-              const Text('Weekly exercise ranking: tied')
-            else if (ranking.strongest == null)
-              const Text('Weekly exercise ranking needs 2 exercises')
-            else
-              Text(
-                'Weekly strongest: ${_exerciseName(ranking.strongest!)} · '
-                'needs attention: ${_exerciseName(ranking.weakest!)}',
+            _AnalyticsStat(
+              width: width,
+              label: 'ACTIVE STREAK',
+              value: '$streak',
+              detail: 'day${streak == 1 ? '' : 's'}',
+              color: AppColors.success,
+            ),
+            _AnalyticsStat(
+              width: width,
+              label: 'TOTAL REPS',
+              value: '${summary.reps}',
+              detail: 'This week',
+              color: AppColors.textPrimary,
+            ),
+            SizedBox(
+              width: constraints.maxWidth,
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.medium),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (ranking.tied)
+                        const Text('Weekly exercise ranking: tied')
+                      else if (ranking.strongest == null)
+                        const Text('Weekly exercise ranking needs 2 exercises')
+                      else
+                        Text(
+                          'Weekly strongest: ${_exerciseName(ranking.strongest!)} · '
+                          'needs attention: ${_exerciseName(ranking.weakest!)}',
+                        ),
+                      if (ranking.scores.isNotEmpty)
+                        const Text(
+                          'Ranking uses available Form Score and consistency.',
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            if (ranking.scores.isNotEmpty)
-              const Text('Ranking uses available Form Score and consistency.'),
+            ),
+            // Weight-based volume requires recorded load input. Do not infer
+            // it from pose-tracking sessions.
           ],
+        );
+      },
+    );
+  }
+}
+
+class _AnalyticsStat extends StatelessWidget {
+  const _AnalyticsStat({
+    required this.width,
+    required this.label,
+    required this.value,
+    required this.detail,
+    required this.color,
+  });
+
+  final double width;
+  final String label;
+  final String value;
+  final String detail;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.medium),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.small),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineLarge?.copyWith(color: color),
+                ),
+              ),
+              Text(detail, style: Theme.of(context).textTheme.bodyMedium),
+            ],
+          ),
         ),
       ),
     );

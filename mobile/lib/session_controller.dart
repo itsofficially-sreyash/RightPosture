@@ -250,16 +250,23 @@ class SessionController extends Notifier<SessionState> {
     if (rep == null) return;
     _trackedSide = null;
     _kneeAngleSmoother.reset();
+    _recordRep(rep, coaching: coaching);
+  }
+
+  void _recordRep(Rep rep, {SquatCoaching? coaching}) {
+    final reps = [...state.reps, rep];
     state = SessionState(
       phase: SessionPhase.tracking,
       selectedExercise: state.selectedExercise,
-      reps: [...state.reps, rep],
+      reps: reps,
       baseline: _evaluator.baseline,
       latestFeedback: rep,
       coaching: coaching,
       targetRepCount: state.targetRepCount,
       workout: state.workout,
     );
+    final target = state.targetRepCount;
+    if (target != null && reps.length >= target) endSession();
   }
 
   void acceptBicepCurlSample(BicepCurlFrameSample sample) {
@@ -299,15 +306,7 @@ class SessionController extends Notifier<SessionState> {
     if (rep == null) return;
     _leftElbowSmoother.reset();
     _rightElbowSmoother.reset();
-    state = SessionState(
-      phase: SessionPhase.tracking,
-      selectedExercise: state.selectedExercise,
-      reps: [...state.reps, rep],
-      baseline: _evaluator.baseline,
-      latestFeedback: rep,
-      targetRepCount: state.targetRepCount,
-      workout: state.workout,
-    );
+    _recordRep(rep);
   }
 
   void acceptLateralRaiseSample(LateralRaiseFrameSample sample) {
@@ -368,15 +367,7 @@ class SessionController extends Notifier<SessionState> {
     if (rep == null) return;
     _leftArmElevationSmoother.reset();
     _rightArmElevationSmoother.reset();
-    state = SessionState(
-      phase: SessionPhase.tracking,
-      selectedExercise: state.selectedExercise,
-      reps: [...state.reps, rep],
-      baseline: _evaluator.baseline,
-      latestFeedback: rep,
-      targetRepCount: state.targetRepCount,
-      workout: state.workout,
-    );
+    _recordRep(rep);
   }
 
   void endSession() {

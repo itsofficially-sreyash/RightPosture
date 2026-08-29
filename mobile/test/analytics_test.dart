@@ -8,6 +8,7 @@ import 'package:right_posture/domain/history.dart';
 import 'package:right_posture/domain/models.dart';
 import 'package:right_posture/domain/workout.dart';
 import 'package:right_posture/ui/analytics_page.dart';
+import 'package:right_posture/ui/app_theme.dart';
 
 void main() {
   test('metric series separates exercises and preserves missing gaps', () {
@@ -70,6 +71,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Performance History'), findsOneWidget);
+    expect(find.byKey(const Key('analytics_squat')), findsOneWidget);
+    expect(
+      tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+      AppColors.background,
+    );
     expect(find.text('Form Score: improved'), findsOneWidget);
     expect(find.text('Earlier · 2026-08-01'), findsWidgets);
     expect(find.text('Later · 2026-08-03'), findsWidgets);
