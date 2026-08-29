@@ -2,6 +2,10 @@
 
 ### Your phone can count a rep. Right Posture understands what happened inside it.
 
+<p align="center">
+  <img src="mobile/assets/screenshot.png" alt="Right Posture mobile app" width="420">
+</p>
+
 [![Flutter](https://img.shields.io/badge/Flutter-Android-02569B?logo=flutter&logoColor=white)](mobile/)
 [![On-device AI](https://img.shields.io/badge/AI-100%25_on--device-C3F400)](#privacy-by-design)
 [![Tests](https://img.shields.io/badge/tests-169_passing-22C55E)](#built-to-be-trusted)
