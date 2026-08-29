@@ -2,6 +2,8 @@
 
 Flutter Android app for the Right Posture on-device exercise-form demo.
 
+For the product story, architecture, innovation, privacy model, and judge-ready demo flow, see the [project README](../README.md).
+
 ## Prerequisites
 
 - Flutter 3.48.0-0.3.pre / Dart 3.13.0 or a compatible newer SDK
@@ -20,7 +22,7 @@ flutter test
 flutter build apk --debug
 ```
 
-`flutter test` reports that no tests exist until domain logic is added in Iteration 03. This is expected during project baseline.
+The test suite covers the movement domain engine, camera pipeline boundaries, session state, coaching, persistence, analytics, and core UI flow.
 
 ## Run on iQOO
 
