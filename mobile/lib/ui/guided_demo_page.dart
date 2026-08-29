@@ -36,7 +36,7 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
   static const _settingsChannel = MethodChannel('right_posture/app_settings');
   late final PosePipeline _pipeline;
   late final CoachingCueCoordinator _cues;
-  late final GuidedDemoCycleTracker _tracker;
+  late final GuidedDemoRepTracker _tracker;
   late String _instruction;
   PosePipelineStatus _status = PosePipelineStatus.initializing;
   Timer? _finishTimer;
@@ -46,7 +46,9 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _tracker = GuidedDemoCycleTracker();
+    _tracker = GuidedDemoRepTracker(
+      const ExerciseRegistry().detectorFor(widget.exercise),
+    );
     _instruction = const ExerciseRegistry()
         .profileFor(widget.exercise)
         .setupInstruction;
@@ -64,30 +66,104 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
     final snapshot = _pipeline.snapshot;
     if (snapshot.status != PosePipelineStatus.ready) {
       _cues.interrupt();
+      _tracker.resetAttempt();
       if (_status != snapshot.status) setState(() => _status = snapshot.status);
       return;
     }
     final values = _valuesFor(snapshot);
     final selected = guidedDemoInstruction(widget.exercise, values);
-    final accepted = _tracker.accept(
-      frame: snapshot.processedFrames,
-      checkedAt: DateTime.now(),
-      instruction: selected,
-    );
-    if (accepted == null) {
-      if (_status != snapshot.status) setState(() => _status = snapshot.status);
+    final movement = _movementFor(snapshot);
+    if (movement == null) {
+      if (_status != snapshot.status ||
+          (selected != null && selected != _instruction)) {
+        setState(() {
+          _status = snapshot.status;
+          if (selected != null) _instruction = selected;
+        });
+      }
       return;
     }
-    setState(() {
-      _status = snapshot.status;
-      _instruction = accepted;
-    });
-    _cues.speak(
-      accepted,
-      enabled: ref.read(settingsControllerProvider).ttsEnabled,
+    final completed = _tracker.accept(
+      frame: snapshot.processedFrames,
+      movement: movement,
     );
+    if (completed || selected != null && selected != _instruction) {
+      final message = completed
+          ? 'Practice rep ${_tracker.completedReps} of '
+                '${_tracker.targetReps} complete.'
+          : selected!;
+      setState(() {
+        _status = snapshot.status;
+        _instruction = message;
+      });
+      _cues.speak(
+        message,
+        enabled: ref.read(settingsControllerProvider).ttsEnabled,
+      );
+    } else if (_status != snapshot.status) {
+      setState(() => _status = snapshot.status);
+    }
     if (_tracker.isComplete && _finishTimer == null) {
       _finishTimer = Timer(const Duration(seconds: 2), _finish);
+    }
+  }
+
+  MovementFrame? _movementFor(PosePipelineSnapshot snapshot) {
+    final now = DateTime.now();
+    switch (widget.exercise) {
+      case ExerciseId.squat:
+        final sample = snapshot.squatSample;
+        if (sample == null) return null;
+        return MovementFrame(
+          timestamp: now,
+          values: {MovementMetric.kneeAngle: sample.kneeAngle},
+          confidence: {MovementMetric.kneeAngle: sample.confidence},
+          trackedSide: switch (sample.side) {
+            'left' => TrackedSide.left,
+            'right' => TrackedSide.right,
+            _ => TrackedSide.unknown,
+          },
+        );
+      case ExerciseId.bicepCurl:
+        final sample = snapshot.bicepCurlSample;
+        if (sample == null) return null;
+        return MovementFrame(
+          timestamp: now,
+          values: {
+            MovementMetric.leftElbowAngle: sample.leftElbowAngle,
+            MovementMetric.rightElbowAngle: sample.rightElbowAngle,
+            MovementMetric.torsoVerticalPosition: sample.torsoVerticalPosition,
+          },
+          confidence: {
+            MovementMetric.leftElbowAngle: sample.leftConfidence,
+            MovementMetric.rightElbowAngle: sample.rightConfidence,
+            MovementMetric.torsoVerticalPosition: sample.torsoConfidence,
+          },
+          trackedSide: TrackedSide.bilateral,
+        );
+      case ExerciseId.lateralRaise || ExerciseId.shoulderPress:
+        final sample = snapshot.lateralRaiseSample;
+        if (sample == null) return null;
+        return MovementFrame(
+          timestamp: now,
+          values: {
+            MovementMetric.leftArmElevation: sample.leftArmElevation,
+            MovementMetric.rightArmElevation: sample.rightArmElevation,
+            MovementMetric.leftElbowAngle: sample.leftElbowAngle,
+            MovementMetric.rightElbowAngle: sample.rightElbowAngle,
+            MovementMetric.torsoLean: sample.torsoLean,
+          },
+          confidence: {
+            MovementMetric.leftArmElevation: sample.leftConfidence,
+            MovementMetric.rightArmElevation: sample.rightConfidence,
+            MovementMetric.leftElbowAngle: sample.leftConfidence,
+            MovementMetric.rightElbowAngle: sample.rightConfidence,
+            MovementMetric.torsoLean: sample.torsoConfidence,
+          },
+          trackedSide: TrackedSide.bilateral,
+        );
+      case ExerciseId.reverseLunge || ExerciseId.jumpingJack:
+        return null;
     }
   }
 
@@ -244,8 +320,8 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
                         ),
                         const SizedBox(height: AppSpacing.small),
                         Text(
-                          'Posture check ${_tracker.completedCycles} of '
-                          '${_tracker.targetCycles}',
+                          'Practice reps ${_tracker.completedReps} of '
+                          '${_tracker.targetReps}',
                           key: const Key('guided_demo_progress'),
                         ),
                         const SizedBox(height: AppSpacing.small),
@@ -260,8 +336,9 @@ class _GuidedDemoPageState extends ConsumerState<GuidedDemoPage>
                         if (!_tracker.isComplete) ...[
                           const SizedBox(height: AppSpacing.small),
                           const Text(
-                            'Checks run automatically. Hold each correction '
-                            'until the next fresh posture check.',
+                            'Copy the guided movement. A rep counts after you '
+                            'complete the full movement and return to the '
+                            'starting position.',
                           ),
                         ],
                       ],

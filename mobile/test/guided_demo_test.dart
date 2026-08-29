@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:right_posture/domain/exercise.dart';
 import 'package:right_posture/domain/guided_demo.dart';
+import 'package:right_posture/domain/squat_rep_detector.dart';
 import 'package:right_posture/ui/guided_demo_page.dart';
 
 void main() {
@@ -15,58 +16,43 @@ void main() {
     expect(events, ['camera closed', 'visit saved']);
   });
 
-  test('five cycles require fresh frames and spacing', () {
-    final tracker = GuidedDemoCycleTracker();
+  test('demo completes only after five detected exercise reps', () {
+    final tracker = GuidedDemoRepTracker(SquatRepDetector());
     final start = DateTime(2026, 8, 29, 12);
 
-    expect(
-      tracker.accept(frame: 1, checkedAt: start, instruction: 'First check'),
-      'First check',
-    );
-    expect(
-      tracker.accept(
-        frame: 1,
-        checkedAt: start.add(const Duration(seconds: 2)),
-        instruction: 'Same frame',
-      ),
-      isNull,
-    );
-    expect(
-      tracker.accept(
-        frame: 2,
-        checkedAt: start.add(const Duration(seconds: 1)),
-        instruction: 'Too soon',
-      ),
-      isNull,
-    );
-    expect(
-      tracker.accept(
-        frame: 2,
-        checkedAt: start.add(const Duration(seconds: 2)),
-        instruction: null,
-      ),
-      isNull,
-    );
-    for (var cycle = 2; cycle <= 5; cycle++) {
-      expect(
-        tracker.accept(
-          frame: cycle,
-          checkedAt: start.add(Duration(seconds: cycle * 2)),
-          instruction: 'Check $cycle',
+    var frame = 0;
+    bool accept(double angle) {
+      frame++;
+      return tracker.accept(
+        frame: frame,
+        movement: MovementFrame(
+          timestamp: start.add(Duration(milliseconds: frame * 100)),
+          values: {MovementMetric.kneeAngle: angle},
+          confidence: const {MovementMetric.kneeAngle: 1},
+          trackedSide: TrackedSide.left,
         ),
-        'Check $cycle',
       );
     }
 
-    expect(tracker.completedCycles, 5);
+    expect(accept(165), isFalse);
+    for (var rep = 1; rep <= 5; rep++) {
+      expect(accept(100), isFalse);
+      expect(accept(165), isTrue);
+      expect(tracker.completedReps, rep);
+    }
+
     expect(tracker.isComplete, isTrue);
     expect(
       tracker.accept(
-        frame: 6,
-        checkedAt: start.add(const Duration(seconds: 12)),
-        instruction: 'Extra',
+        frame: frame,
+        movement: MovementFrame(
+          timestamp: start,
+          values: const {MovementMetric.kneeAngle: 100},
+          confidence: const {MovementMetric.kneeAngle: 1},
+          trackedSide: TrackedSide.left,
+        ),
       ),
-      isNull,
+      isFalse,
     );
   });
 

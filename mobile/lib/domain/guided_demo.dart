@@ -1,30 +1,25 @@
 import 'exercise.dart';
 
-class GuidedDemoCycleTracker {
-  GuidedDemoCycleTracker({
-    this.targetCycles = 5,
-    this.checkInterval = const Duration(seconds: 2),
-  });
+class GuidedDemoRepTracker {
+  GuidedDemoRepTracker(this._detector, {this.targetReps = 5});
 
-  final int targetCycles;
-  final Duration checkInterval;
-  int completedCycles = 0;
+  final RepDetector _detector;
+  final int targetReps;
+  int completedReps = 0;
   int _lastFrame = -1;
-  DateTime? _nextCheckAt;
 
-  bool get isComplete => completedCycles >= targetCycles;
+  bool get isComplete => completedReps >= targetReps;
 
-  String? accept({
-    required int frame,
-    required DateTime checkedAt,
-    required String? instruction,
-  }) {
-    if (isComplete || instruction == null || frame <= _lastFrame) return null;
-    if (_nextCheckAt != null && checkedAt.isBefore(_nextCheckAt!)) return null;
+  bool accept({required int frame, required MovementFrame movement}) {
+    if (isComplete || frame <= _lastFrame) return false;
     _lastFrame = frame;
-    _nextCheckAt = checkedAt.add(checkInterval);
-    completedCycles++;
-    return instruction;
+    if (_detector.addFrame(movement) == null) return false;
+    completedReps++;
+    return true;
+  }
+
+  void resetAttempt() {
+    _detector.reset();
   }
 }
 

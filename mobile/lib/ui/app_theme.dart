@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  static const background = Color(0xFF15161B);
-  static const surface = Color(0xFF1F2025);
-  static const surfaceElevated = Color(0xFF2D2D35);
-  static const lime = Color(0xFFD6FF5A);
+  static const background = Color(0xFF131316);
+  static const surface = Color(0xFF1F1F22);
+  static const surfaceElevated = Color(0xFF1C1C21);
+  static const surfaceContainerHigh = Color(0xFF2A2A2D);
+  static const surfaceGlass = Color(0xF21C1C21);
+  static const outlineVariant = Color(0xFF444933);
+  static const lime = Color(0xFFC3F400);
+  static const cyan = Color(0xFF9CF0FF);
+  static const success = Color(0xFF22C55E);
   static const textPrimary = Color(0xFFFFFFFF);
   static const textMuted = Color(0xFFBEBEC6);
   static const warning = Color(0xFFFFB84D);
@@ -12,6 +17,7 @@ abstract final class AppColors {
 }
 
 abstract final class AppSpacing {
+  static const base = 4.0;
   static const small = 8.0;
   static const medium = 16.0;
   static const large = 24.0;
@@ -19,6 +25,7 @@ abstract final class AppSpacing {
 }
 
 abstract final class AppRadius {
+  static const small = 8.0;
   static const medium = 12.0;
   static const large = 24.0;
   static const pill = 999.0;
@@ -71,6 +78,25 @@ ThemeData buildAppTheme() {
         shape: const StadiumBorder(),
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.textPrimary,
+        minimumSize: const Size(48, 48),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.medium),
+        side: const BorderSide(color: AppColors.outlineVariant),
+        shape: const StadiumBorder(),
+        textStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+        ),
+      ),
+    ),
+    navigationBarTheme: const NavigationBarThemeData(
+      backgroundColor: AppColors.surface,
+      indicatorColor: AppColors.lime,
+      height: 72,
     ),
     cardTheme: const CardThemeData(
       color: AppColors.surface,
