@@ -24,7 +24,7 @@ flutter build apk --debug
 
 The test suite covers the movement domain engine, camera pipeline boundaries, session state, coaching, persistence, analytics, and core UI flow.
 
-## Run on iQOO
+## Run on Mobile
 
 1. Enable Developer options and USB debugging on the phone.
 2. Connect by USB and accept the device authorization prompt.
@@ -32,7 +32,7 @@ The test suite covers the movement domain engine, camera pipeline boundaries, se
 4. Start the app with `flutter run -d <device-id>`.
 5. Grant camera access when requested.
 
-The iQOO camera and pose-performance gate is tracked in `../execution/02_device_pose_spike.md`.
+The mobile camera and pose-performance gate is tracked in `../execution/02_device_pose_spike.md`.
 
 ## Current scope
 

@@ -9,7 +9,6 @@
 [![Flutter](https://img.shields.io/badge/Flutter-Android-02569B?logo=flutter&logoColor=white)](mobile/)
 [![On-device AI](https://img.shields.io/badge/AI-100%25_on--device-C3F400)](#privacy-by-design)
 [![Tests](https://img.shields.io/badge/tests-169_passing-22C55E)](#built-to-be-trusted)
-[![Hackathon](https://img.shields.io/badge/iQOO_Hackathon_2026-HealthTech-7C3AED)](#why-right-posture-deserves-to-win)
 
 **Right Posture is a private, real-time movement coach that uses only a phone camera to understand exercise form.** It turns 33 body landmarks into joint angles, rep phases, form evidence, live cues, and meaningful progress insights—with no wearable, no cloud inference, and no recorded video.
 
